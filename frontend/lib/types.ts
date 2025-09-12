@@ -1,0 +1,186 @@
+// Sport types
+export type SportType = 'climbing' | 'bouldering' | 'skiing' | 'motocross' | 'mountainbike'
+
+// Upload types
+export type UploadStatus = 'idle' | 'uploading' | 'uploaded' | 'analyzing' | 'completed' | 'error'
+
+export interface UploadResponse {
+  fileId: string
+  uploadUrl?: string
+  message: string
+}
+
+// Analysis types
+export interface AnalysisRequest {
+  video_url: string
+  sport_type: SportType
+  analysis_type?: string
+  user_id?: string
+}
+
+export interface AnalysisInsight {
+  category: string
+  level: 'info' | 'warning' | 'success' | 'error'
+  message: string
+  priority: 'low' | 'medium' | 'high'
+}
+
+export interface KeyMetric {
+  status: 'good' | 'needs_improvement' | 'not_analyzed'
+  value?: number
+}
+
+export interface SportSpecificAnalysis {
+  sport_type: SportType
+  key_metrics: Record<string, KeyMetric>
+  technique_points?: Array<{
+    area: string
+    score: number
+    feedback: string
+  }>
+  safety_considerations: string[]
+  training_recommendations: string[]
+}
+
+export interface AnalysisSummary {
+  analyzers_used: number
+  total_insights: number
+  recommendations_count: number
+  overall_score: number
+}
+
+export interface AnalysisResult {
+  id: string
+  sport_type: SportType
+  analyzer_type: string
+  overall_performance_score: number
+  comprehensive_insights: AnalysisInsight[]
+  unified_recommendations: string[]
+  sport_specific_analysis: SportSpecificAnalysis
+  analysis_summary: AnalysisSummary
+  metadata?: {
+    analysis_type: string
+    timestamp: string
+  }
+}
+
+// UI Component types
+export interface VideoUploadProps {
+  onUploadComplete?: (result: AnalysisResult) => void
+  allowedSports?: SportType[]
+  maxFileSize?: number
+}
+
+export interface AnalysisResultsProps {
+  analysisId: string
+  onError?: (error: string) => void
+}
+
+export interface SportSelectorProps {
+  onSelect?: (sport: SportType) => void
+  selectedSport?: SportType
+  showDetails?: boolean
+}
+
+// API Response types
+export interface ApiResponse<T = any> {
+  success: boolean
+  data?: T
+  message?: string
+  error?: string
+}
+
+export interface PaginatedResponse<T> extends ApiResponse<T[]> {
+  page: number
+  limit: number
+  total: number
+  totalPages: number
+}
+
+// User types (for future use)
+export interface User {
+  id: string
+  email: string
+  name?: string
+  created_at: string
+  subscription_tier?: 'free' | 'premium' | 'professional'
+}
+
+// Analysis History types
+export interface AnalysisHistoryItem {
+  id: string
+  sport_type: SportType
+  created_at: string
+  status: 'completed' | 'failed' | 'processing'
+  overall_score?: number
+  video_filename?: string
+}
+
+// Settings types
+export interface UserSettings {
+  preferred_sports: SportType[]
+  email_notifications: boolean
+  analysis_detail_level: 'basic' | 'detailed' | 'comprehensive'
+  theme: 'light' | 'dark' | 'auto'
+}
+
+// Error types
+export interface ApiError {
+  message: string
+  status: number
+  code?: string
+  details?: any
+}
+
+// Form types
+export interface UploadFormData {
+  sport_type: SportType
+  file: File
+  analysis_type: 'basic' | 'comprehensive'
+  notes?: string
+}
+
+// Performance Metrics types
+export interface PerformanceMetrics {
+  stability_score: number
+  efficiency_score: number
+  technique_score: number
+  power_output?: number
+  balance?: number
+  coordination?: number
+}
+
+// Biomechanics types
+export interface BiomechanicsData {
+  joint_angles: Record<string, number[]>
+  movement_patterns: string[]
+  technique_score: number
+  recommendations: string[]
+}
+
+// Video Processing types
+export interface VideoMetadata {
+  duration: number
+  fps: number
+  resolution: {
+    width: number
+    height: number
+  }
+  fileSize: number
+  format: string
+}
+
+// Chart/Visualization types
+export interface ChartDataPoint {
+  timestamp: number
+  value: number
+  label?: string
+}
+
+export interface PerformanceChart {
+  title: string
+  data: ChartDataPoint[]
+  type: 'line' | 'bar' | 'scatter'
+  yAxisLabel: string
+  xAxisLabel: string
+}
