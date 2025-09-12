@@ -28,8 +28,8 @@ requests>=2.31.0
 # Environment variables
 python-dotenv>=1.0.0
 
-# Image processing
-Pillow>=10.0.0
+# Image processing (optional)
+# Pillow>=10.0.0
 
 # Testing
 pytest>=7.4.3
