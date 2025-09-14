@@ -5,7 +5,6 @@ const nextConfig = {
   
   // Enable experimental features
   experimental: {
-    appDir: true,
     serverComponentsExternalPackages: [],
   },
 
@@ -79,8 +78,6 @@ const nextConfig = {
   // Output configuration for Docker
   output: 'standalone',
 
-  // Disable telemetry
-  telemetry: false,
 
   // Compiler options
   compiler: {

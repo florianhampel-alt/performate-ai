@@ -7,7 +7,7 @@ import { Progress } from '@/components/ui/progress'
 import { Alert } from '@/components/ui/alert'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import { getAnalysisResults } from '@/lib/api'
-import type { AnalysisResult, SportType } from '@/lib/types'
+import type { AnalysisResult } from '@/lib/types'
 
 interface AnalysisResultsProps {
   analysisId: string
