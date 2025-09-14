@@ -9,6 +9,11 @@
     "dev": "cd frontend && npm run dev",
     "postinstall": "cd frontend && npm install"
   },
+  "dependencies": {
+    "next": "^14.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
   "workspaces": [
     "frontend"
   ]
