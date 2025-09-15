@@ -44,14 +44,17 @@ export default function VideoUpload() {
     setUploadStatus('uploading')
     setUploadProgress(0)
 
+    // Declare progressInterval outside try block for cleanup
+    let progressInterval: NodeJS.Timeout | null = null
+
     try {
       console.log('Starting upload for file:', file.name, 'Sport:', selectedSport)
       
       // Simulate upload progress
-      const progressInterval = setInterval(() => {
+      progressInterval = setInterval(() => {
         setUploadProgress(prev => {
           if (prev >= 95) {
-            clearInterval(progressInterval)
+            if (progressInterval) clearInterval(progressInterval)
             return 95
           }
           return prev + Math.random() * 10
@@ -62,7 +65,7 @@ export default function VideoUpload() {
       const uploadResult = await uploadVideo(file, selectedSport)
       console.log('Upload result:', uploadResult)
       
-      clearInterval(progressInterval)
+      if (progressInterval) clearInterval(progressInterval)
       setUploadProgress(100)
       setUploadStatus('uploaded')
       
@@ -85,7 +88,7 @@ export default function VideoUpload() {
 
     } catch (err) {
       console.error('Upload error:', err)
-      clearInterval(progressInterval)
+      if (progressInterval) clearInterval(progressInterval)
       const errorMessage = err instanceof Error ? err.message : 'Upload failed'
       console.error('Error details:', errorMessage)
       setError(`Upload failed: ${errorMessage}`)
