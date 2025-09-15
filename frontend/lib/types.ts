@@ -35,6 +35,7 @@ export interface KeyMetric {
 
 export interface SportSpecificAnalysis {
   sport_type: SportType
+  difficulty_grade?: string  // Climbing grade like '5a', '6b+', etc.
   key_metrics: Record<string, KeyMetric>
   technique_points?: Array<{
     area: string
