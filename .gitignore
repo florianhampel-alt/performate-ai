@@ -69,3 +69,6 @@ temp/
 # Video uploads
 uploads/
 backend/uploads/
+
+# AWS S3 configuration (contains sensitive info)
+s3-bucket-policy.json
