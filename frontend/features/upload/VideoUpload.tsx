@@ -103,7 +103,7 @@ export default function VideoUpload() {
       'video/*': ['.mp4', '.mov', '.avi', '.mkv', '.wmv']
     },
     maxFiles: 1,
-    maxSize: 50 * 1024 * 1024, // 50MB - Render memory limit
+    maxSize: 120 * 1024 * 1024, // 120MB
     disabled: uploadStatus === 'uploading' || uploadStatus === 'analyzing'
   })
 
@@ -159,7 +159,7 @@ export default function VideoUpload() {
                   : 'Drag & drop your video here, or click to select'}
               </p>
               <p className="text-sm text-gray-500 mb-4">
-                Supports MP4, MOV, AVI, MKV, WMV (max 50MB)
+                Supports MP4, MOV, AVI, MKV, WMV (max 120MB)
               </p>
               <Button variant="outline">
                 Choose File
@@ -239,7 +239,7 @@ export default function VideoUpload() {
         <Card className="p-6">
           <h3 className="text-lg font-semibold mb-3">⚡ Best Practices</h3>
           <ul className="space-y-2 text-sm text-gray-600">
-            <li>• Upload videos under 50MB for optimal processing</li>
+            <li>• Upload videos up to 120MB supported with S3 storage</li>
             <li>• Select the correct sport for accurate analysis</li>
             <li>• Capture multiple attempts for comparison</li>
             <li>• Ensure clear view of technique and form</li>

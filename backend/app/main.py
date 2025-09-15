@@ -10,11 +10,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from app.config.base import settings
 from app.services.redis_service import redis_service
+from app.services.s3_service import s3_service
 from app.utils.logger import get_logger
 # from app.analyzers.climbing_analyzer import ClimbingPoseAnalyzer  # Disabled for deployment
 
-# In-memory video storage for Render (ephemeral file system)
-video_storage = {}
+# In-memory video storage for fallback when S3 is not available
+video_storage = {}  # Used only when S3 is disabled
 
 logger = get_logger(__name__)
 
@@ -50,15 +51,10 @@ async def upload_options():
 
 @app.get("/videos/{video_id}")
 async def serve_video(video_id: str):
-    """Serve video file from in-memory storage or Redis cache"""
+    """Serve video file from S3 or in-memory storage"""
     try:
-        video_content = None
-        
-        # Try in-memory storage first
-        if video_id in video_storage:
-            video_content = video_storage[video_id]['content']
-            logger.info(f"Serving video {video_id} from memory")
-        else:
+        # Check if video exists in storage metadata
+        if video_id not in video_storage:
             # Try Redis cache
             try:
                 cached_video = await redis_service.get_json(f"video:{video_id}")
@@ -70,24 +66,53 @@ async def serve_video(video_id: str):
                         'content': video_content,
                         'filename': cached_video.get('filename', 'video.mp4'),
                         'content_type': cached_video.get('content_type', 'video/mp4'),
-                        'size': cached_video.get('size', len(video_content))
+                        'size': cached_video.get('size', len(video_content)),
+                        'storage_type': 'memory'
                     }
                     logger.info(f"Restored video {video_id} from Redis cache")
+                else:
+                    raise HTTPException(status_code=404, detail="Video not found")
             except Exception as cache_err:
                 logger.warning(f"Redis cache retrieval failed: {cache_err}")
+                raise HTTPException(status_code=404, detail="Video not found")
         
-        if video_content is None:
-            raise HTTPException(status_code=404, detail="Video not found")
+        video_info = video_storage[video_id]
+        
+        # Handle S3 stored videos
+        if video_info.get('storage_type') == 's3' and 's3_key' in video_info:
+            # Generate presigned URL for S3 video
+            presigned_url = await s3_service.generate_presigned_url(
+                video_info['s3_key'], 
+                expires_in=3600  # 1 hour
+            )
             
-        return Response(
-            content=video_content,
-            media_type="video/mp4",
-            headers={
-                "Accept-Ranges": "bytes",
-                "Content-Length": str(len(video_content)),
-                "Cache-Control": "public, max-age=3600"
-            }
-        )
+            if presigned_url:
+                # Redirect to presigned URL instead of streaming through backend
+                from fastapi.responses import RedirectResponse
+                return RedirectResponse(url=presigned_url, status_code=302)
+            else:
+                logger.error(f"Failed to generate presigned URL for {video_id}")
+                raise HTTPException(status_code=500, detail="Failed to access video from storage")
+        
+        # Handle memory stored videos (fallback)
+        elif video_info.get('storage_type') == 'memory' and 'content' in video_info:
+            video_content = video_info['content']
+            logger.info(f"Serving video {video_id} from memory")
+            
+            return Response(
+                content=video_content,
+                media_type=video_info.get('content_type', 'video/mp4'),
+                headers={
+                    "Accept-Ranges": "bytes",
+                    "Content-Length": str(len(video_content)),
+                    "Cache-Control": "public, max-age=3600"
+                }
+            )
+        
+        else:
+            logger.error(f"Invalid video storage info for {video_id}: {video_info}")
+            raise HTTPException(status_code=500, detail="Invalid video storage configuration")
+            
     except HTTPException:
         raise
     except Exception as e:
@@ -192,29 +217,67 @@ async def upload_video(file: UploadFile = File(...)):
         file_size = file.size or 0
         logger.info(f"Processing video file: {file.filename} ({file_size / (1024*1024):.1f}MB)")
         
-        # Prevent memory overflow for very large files on Render's free tier
-        if file_size > 50 * 1024 * 1024:  # 50MB limit for Render
+        # Allow larger files but with memory management warnings
+        if file_size > 120 * 1024 * 1024:  # 120MB hard limit
             raise HTTPException(
                 status_code=413, 
-                detail="File too large for processing. Please use a video under 50MB or compress your video."
+                detail="File too large. Maximum size is 120MB. Please compress your video."
             )
+        elif file_size > 50 * 1024 * 1024:  # Warning for large files
+            logger.warning(f"Large file upload: {file_size/(1024*1024):.1f}MB - may hit memory limits")
             
         # Read video content
         contents = await file.read()
         logger.info(f"Video read successfully: {len(contents) / (1024*1024):.1f}MB")
         
-        # Store video in memory for Render deployment (ephemeral file system)
+        # Upload video to S3 (preferred) or store in memory (fallback)
+        s3_key = None
         try:
-            # Store video content in memory with metadata
+            # Try uploading to S3 first
+            if s3_service.enabled:
+                logger.info(f"Uploading video to S3: {file_size/(1024*1024):.1f}MB")
+                s3_key = await s3_service.upload_video(
+                    video_content=contents,
+                    filename=file.filename,
+                    analysis_id=analysis_id,
+                    content_type=file.content_type
+                )
+                
+                if s3_key:
+                    logger.info(f"Successfully uploaded video to S3: {s3_key}")
+                    # Store minimal metadata in memory for quick access
+                    video_storage[analysis_id] = {
+                        's3_key': s3_key,
+                        'filename': file.filename,
+                        'content_type': file.content_type,
+                        'size': file_size,
+                        'timestamp': uuid.uuid4().hex[:8],
+                        'storage_type': 's3'
+                    }
+                else:
+                    logger.warning("S3 upload failed, falling back to memory storage")
+                    raise Exception("S3 upload failed")
+            else:
+                raise Exception("S3 not configured")
+                
+        except Exception as s3_error:
+            # Fallback to memory storage
+            logger.warning(f"S3 storage failed ({str(s3_error)}), using memory storage")
+            if file_size > 100 * 1024 * 1024:  # 100MB limit for memory
+                raise HTTPException(
+                    status_code=413, 
+                    detail="File too large for memory storage and S3 unavailable. Configure S3 for large files."
+                )
+                
             video_storage[analysis_id] = {
                 'content': contents,
                 'filename': file.filename,
                 'content_type': file.content_type,
                 'size': file_size,
-                'timestamp': uuid.uuid4().hex[:8]
+                'timestamp': uuid.uuid4().hex[:8],
+                'storage_type': 'memory'
             }
-            
-            logger.info(f"Video stored in memory for analysis_id: {analysis_id} ({file_size / 1024 / 1024:.1f}MB)")
+            logger.info(f"Video stored in memory (fallback): {analysis_id} ({file_size / 1024 / 1024:.1f}MB)")
             
             # 3. Detektiere Sport-Typ
             sport_detected = detect_sport_from_filename(file.filename)
