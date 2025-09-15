@@ -80,29 +80,52 @@ class S3Service:
             file_extension = filename.split('.')[-1] if '.' in filename else 'mp4'
             s3_key = f"videos/{timestamp}/{analysis_id}.{file_extension}"
             
-            # Upload to S3 using multipart upload for large files
-            session = aioboto3.Session(
-                aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-                aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-                region_name=self.region
-            )
+            # Use sync boto3 client for reliable file streaming
+            # Convert async file stream to sync for boto3 compatibility
+            import io
+            import asyncio
             
-            async with session.client('s3') as s3:
-                # Use streaming upload - no memory loading
-                await s3.upload_fileobj(
-                    video_stream,
-                    self.bucket,
-                    s3_key,
-                    ExtraArgs={
-                        'ContentType': content_type,
-                        'Metadata': {
-                            'analysis_id': analysis_id,
-                            'original_filename': filename,
-                            'upload_timestamp': datetime.now().isoformat(),
-                            'file_size': str(file_size)
-                        }
+            # Read the entire stream into a BytesIO buffer
+            logger.info(f"Reading file stream for S3 upload...")
+            file_buffer = io.BytesIO()
+            
+            # Read in chunks to monitor progress
+            chunk_size = 8 * 1024 * 1024  # 8MB chunks
+            total_read = 0
+            
+            while True:
+                chunk = await video_stream.read(chunk_size)
+                if not chunk:
+                    break
+                file_buffer.write(chunk)
+                total_read += len(chunk)
+                
+                if total_read % (32 * 1024 * 1024) == 0:  # Log every 32MB
+                    logger.info(f"Read {total_read/(1024*1024):.1f}MB so far...")
+                
+                # Safety check
+                if total_read > file_size * 1.2:  # 20% tolerance
+                    logger.warning(f"Read more data than expected: {total_read} vs {file_size}")
+                    break
+            
+            file_buffer.seek(0)  # Reset to beginning
+            logger.info(f"File stream read complete: {total_read/(1024*1024):.1f}MB")
+            
+            # Upload using sync boto3 client
+            self.client.upload_fileobj(
+                file_buffer,
+                self.bucket,
+                s3_key,
+                ExtraArgs={
+                    'ContentType': content_type,
+                    'Metadata': {
+                        'analysis_id': analysis_id,
+                        'original_filename': filename,
+                        'upload_timestamp': datetime.now().isoformat(),
+                        'file_size': str(total_read)
                     }
-                )
+                }
+            )
                 
             logger.info(f"Successfully streamed video to S3: {s3_key} ({file_size/(1024*1024):.1f}MB)")
             return s3_key
