@@ -11,6 +11,7 @@ from fastapi.responses import Response
 from app.config.base import settings
 from app.services.redis_service import redis_service
 from app.services.s3_service import s3_service
+from app.services.video_analysis_service import video_analysis_service
 from app.utils.logger import get_logger
 # from app.analyzers.climbing_analyzer import ClimbingPoseAnalyzer  # Disabled for deployment
 
@@ -336,15 +337,26 @@ async def complete_upload(request: dict):
         except Exception as redis_error:
             logger.warning(f"Failed to cache video metadata in Redis: {redis_error}")
         
-        # Generate analysis (sport detection from filename)
+        # Generate enhanced analysis with route overlay
         sport_detected = detect_sport_from_filename(video_info['filename'])
         
         if sport_detected in ['climbing', 'bouldering']:
-            analysis_result = create_intelligent_climbing_analysis(
-                video_info['filename'], 
-                video_info['size'], 
-                ""
+            # Use advanced video analysis service for climbing videos
+            video_analysis = await video_analysis_service.analyze_climbing_video(
+                video_path=f"/videos/{analysis_id}",  # S3 path reference
+                analysis_id=analysis_id,
+                sport_type=sport_detected
             )
+            
+            # Create enhanced analysis result with overlay data
+            analysis_result = {
+                **create_intelligent_climbing_analysis(video_info['filename'], video_info['size'], ""),
+                "route_analysis": video_analysis.get("route_analysis", {}),
+                "overlay_data": video_analysis.get("overlay_data", {}),
+                "has_route_overlay": video_analysis.get("overlay_data", {}).get("has_overlay", False),
+                "enhanced_insights": video_analysis.get("route_analysis", {}).get("key_insights", []),
+                "difficulty_estimated": video_analysis.get("route_analysis", {}).get("difficulty_estimated", "Unknown")
+            }
         else:
             analysis_result = create_mock_analysis(
                 video_info['filename'], 
@@ -390,6 +402,40 @@ async def get_upload_status(analysis_id: str):
         }
     else:
         raise HTTPException(status_code=404, detail="Upload session not found")
+
+
+@app.get("/analysis/{analysis_id}/overlay")
+async def get_video_overlay(analysis_id: str):
+    """Get video overlay data for frontend rendering"""
+    try:
+        # Try to get cached analysis result
+        cached_result = await redis_service.get_cached_analysis(analysis_id)
+        
+        if cached_result and cached_result.get("overlay_data"):
+            overlay_data = cached_result["overlay_data"]
+            
+            return {
+                "analysis_id": analysis_id,
+                "has_overlay": overlay_data.get("has_overlay", False),
+                "overlay_elements": overlay_data.get("elements", []),
+                "video_dimensions": overlay_data.get("video_dimensions", {"width": 640, "height": 480}),
+                "total_duration": overlay_data.get("total_duration", 15.0),
+                "route_info": {
+                    "difficulty": cached_result.get("difficulty_estimated", "Unknown"),
+                    "total_moves": cached_result.get("route_analysis", {}).get("total_moves", 0),
+                    "overall_score": cached_result.get("route_analysis", {}).get("overall_score", 0)
+                }
+            }
+        else:
+            return {
+                "analysis_id": analysis_id,
+                "has_overlay": False,
+                "message": "No overlay data available for this analysis"
+            }
+            
+    except Exception as e:
+        logger.error(f"Error retrieving overlay data for {analysis_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve overlay data")
 
 
 @app.get("/analysis/{analysis_id}")
