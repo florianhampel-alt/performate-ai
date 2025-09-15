@@ -351,6 +351,7 @@ async def upload_video(file: UploadFile = File(...)):
         
         # Upload video to S3 (preferred) or store in memory (fallback)
         s3_key = None
+        analysis_result = None  # Initialize to prevent undefined variable errors
         try:
             # Try uploading to S3 first (performance optimized)
             if s3_service.enabled:
@@ -476,7 +477,11 @@ async def upload_video(file: UploadFile = File(...)):
         except Exception as e:
             logger.warning(f"Redis video caching failed: {e} - will serve from memory only")
         
-        # 6. Erweiterte Antwort
+        # 6. Safety check and final result
+        if analysis_result is None:
+            logger.error(f"Analysis result is None for {analysis_id} - creating fallback")
+            analysis_result = create_fallback_analysis()
+            
         final_result = {
             "analysis_id": analysis_id,
             "filename": file.filename,
