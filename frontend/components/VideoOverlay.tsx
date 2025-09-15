@@ -46,9 +46,10 @@ interface VideoOverlayProps {
   videoUrl: string;
   analysisId: string;
   className?: string;
+  analysisData?: any; // Pass analysis data directly
 }
 
-export default function VideoOverlay({ videoUrl, analysisId, className = "" }: VideoOverlayProps) {
+export default function VideoOverlay({ videoUrl, analysisId, className = "", analysisData }: VideoOverlayProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -64,15 +65,46 @@ export default function VideoOverlay({ videoUrl, analysisId, className = "" }: V
   useEffect(() => {
     const fetchOverlayData = async () => {
       try {
+        // Try to use passed analysis data first
+        if (analysisData?.overlay_data) {
+          console.log('📊 Using overlay data from analysis:', analysisData.overlay_data);
+          console.log('🎯 Has overlay:', analysisData.overlay_data.has_overlay);
+          console.log('📍 Overlay elements count:', analysisData.overlay_data.elements?.length || 0);
+          
+          const overlayData = {
+            has_overlay: analysisData.overlay_data.has_overlay || false,
+            overlay_elements: analysisData.overlay_data.elements || [],
+            video_dimensions: analysisData.overlay_data.video_dimensions || { width: 640, height: 480 },
+            total_duration: analysisData.overlay_data.total_duration || 15.0,
+            route_info: {
+              difficulty: analysisData.difficulty_estimated || 'Unknown',
+              total_moves: analysisData.route_analysis?.total_moves || 0,
+              overall_score: analysisData.route_analysis?.overall_score || 0
+            }
+          };
+          
+          if (overlayData.has_overlay && overlayData.overlay_elements?.length > 0) {
+            console.log('✅ Overlay data from analysis looks good!');
+            overlayData.overlay_elements.forEach((element: any, i: number) => {
+              console.log(`Element ${i}:`, element.type, element);
+            });
+          }
+          
+          setOverlayData(overlayData);
+          setLoading(false);
+          return;
+        }
+        
+        // Fallback to API endpoint
         const url = `${process.env.NEXT_PUBLIC_API_URL}/analysis/${analysisId}/overlay`;
-        console.log('🔍 Fetching overlay data from:', url);
+        console.log('🔍 Fetching overlay data from API:', url);
         
         const response = await fetch(url);
         console.log('📡 Overlay response status:', response.status);
         
         if (response.ok) {
           const data = await response.json();
-          console.log('📊 Overlay data received:', data);
+          console.log('📊 Overlay data received from API:', data);
           console.log('🎯 Has overlay:', data.has_overlay);
           console.log('📍 Overlay elements count:', data.overlay_elements?.length || 0);
           

@@ -132,6 +132,7 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
               <VideoOverlay 
                 videoUrl={videoUrl}
                 analysisId={analysisId}
+                analysisData={analysis}
                 className="w-full"
               />
             ) : (

@@ -462,7 +462,10 @@ async def get_analysis_results(analysis_id: str):
                 video_path=""
             )
         
-        # Return formatted response
+        # Generate overlay data if it exists in analysis result
+        overlay_data = analysis_result.get('overlay_data', {"has_overlay": False})
+        
+        # Return formatted response with overlay data included
         return {
             "id": analysis_id,
             "sport_type": analysis_result.get('sport_detected', 'climbing'),
@@ -510,7 +513,12 @@ async def get_analysis_results(analysis_id: str):
             "metadata": {
                 "analysis_type": "climbing_intelligent_analysis",
                 "timestamp": analysis_id[:8] + "-" + analysis_id[8:12] + "-" + analysis_id[12:16] + "-" + analysis_id[16:20] + "-" + analysis_id[20:]
-            }
+            },
+            # Add overlay data directly to analysis response
+            "overlay_data": overlay_data,
+            "has_route_overlay": overlay_data.get("has_overlay", False),
+            "enhanced_insights": analysis_result.get('route_analysis', {}).get('key_insights', []),
+            "difficulty_estimated": analysis_result.get('route_analysis', {}).get('difficulty_estimated', 'Unknown')
         }
             
     except Exception as e:
