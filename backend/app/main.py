@@ -65,6 +65,8 @@ async def debug_videos():
             "total_uploads": last_upload_info["count"],
             "last_upload_time": last_upload_info["last_time"],
             "last_upload_id": last_upload_info["last_id"],
+            "last_error": last_upload_info.get("last_error", None),
+            "last_error_time": last_upload_info.get("last_error_time", None),
             "server_time": datetime.datetime.now().isoformat()
         }
     }
@@ -489,14 +491,26 @@ async def upload_video(file: UploadFile = File(...)):
         }
         
         logger.info(f"Analysis completed successfully for {analysis_id}: {file.filename} ({file_size/(1024*1024):.1f}MB)")
+        logger.info(f"Final video_storage keys: {list(video_storage.keys())}")
         return final_result
         
     except Exception as e:
-        logger.error(f"Analysis failed for {analysis_id}: {str(e)}")
+        import traceback
+        error_details = traceback.format_exc()
+        logger.error(f"CRITICAL: Analysis failed for {analysis_id}")
+        logger.error(f"Error: {str(e)}")
+        logger.error(f"Error type: {type(e).__name__}")
+        logger.error(f"Full traceback: {error_details}")
+        logger.error(f"Video storage before cleanup: {list(video_storage.keys())}")
+        
         # Clean up on error
         if analysis_id in video_storage:
             del video_storage[analysis_id]
             logger.info(f"Cleaned up video storage for failed analysis: {analysis_id}")
+        
+        # Update tracking
+        last_upload_info["last_error"] = str(e)
+        last_upload_info["last_error_time"] = datetime.datetime.now().isoformat()
             
         return {
             "analysis_id": analysis_id,
@@ -504,6 +518,7 @@ async def upload_video(file: UploadFile = File(...)):
             "content_type": file.content_type,
             "status": "error",
             "error": str(e),
+            "error_type": type(e).__name__,
             "analysis": create_fallback_analysis()
         }
 
