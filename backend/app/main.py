@@ -45,6 +45,19 @@ async def root():
 async def health_check():
     return {"status": "healthy"}
 
+@app.get("/debug/s3")
+async def debug_s3():
+    """Debug S3 configuration"""
+    return {
+        "s3_enabled": s3_service.enabled,
+        "s3_bucket": s3_service.bucket if s3_service.enabled else None,
+        "s3_region": s3_service.region if s3_service.enabled else None,
+        "has_access_key": bool(settings.AWS_ACCESS_KEY_ID),
+        "has_secret_key": bool(settings.AWS_SECRET_ACCESS_KEY),
+        "access_key_length": len(settings.AWS_ACCESS_KEY_ID) if settings.AWS_ACCESS_KEY_ID else 0,
+        "secret_key_length": len(settings.AWS_SECRET_ACCESS_KEY) if settings.AWS_SECRET_ACCESS_KEY else 0
+    }
+
 @app.get("/debug/videos")
 async def debug_videos():
     """Debug endpoint to list all stored videos"""
