@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Alert } from '@/components/ui/alert'
 import LoadingSpinner from '@/components/LoadingSpinner'
+import VideoOverlay from '@/components/VideoOverlay'
 import { getAnalysisResults } from '@/lib/api'
 import type { AnalysisResult } from '@/lib/types'
 
@@ -121,130 +122,138 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
         </p>
       </div>
 
-      {/* Video Player with Analysis */}
+      {/* Enhanced Video Player with Route Overlay */}
       <Card className="p-8 mb-8">
-        <h2 className="text-2xl font-semibold mb-6">Your Climbing Video with AI Analysis</h2>
-        <div className="grid lg:grid-cols-2 gap-8">
-          {/* Video Player */}
-          <div className="relative">
-            <div className="aspect-video bg-gray-900 rounded-lg overflow-hidden relative">
-              {/* Real HTML5 Video Player */}
-              {videoUrl ? (
-                <video 
-                  className="w-full h-full object-cover"
-                  controls
-                  preload="metadata"
-                  poster="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1920 1080'%3E%3Crect width='1920' height='1080' fill='%23111827'/%3E%3C/svg%3E"
-                >
-                  <source 
-                    src={videoUrl} 
-                    type="video/mp4" 
-                  />
-                  <p className="text-white text-center p-4">
-                    Ihr Browser unterstützt keine HTML5-Videos. 
-                    <a href={videoUrl} className="text-blue-400 underline">
-                      Direkter Download
-                    </a>
+        <h2 className="text-2xl font-semibold mb-6">Interactive Route Analysis</h2>
+        <div className="grid lg:grid-cols-3 gap-8">
+          {/* Advanced Video Player with Overlays */}
+          <div className="lg:col-span-2">
+            {videoUrl ? (
+              <VideoOverlay 
+                videoUrl={videoUrl}
+                analysisId={analysisId}
+                className="w-full"
+              />
+            ) : (
+              <div className="aspect-video bg-gray-900 rounded-lg flex items-center justify-center">
+                <div className="text-white text-center">
+                  <LoadingSpinner className="w-12 h-12 mx-auto mb-4" />
+                  <p className="text-lg font-medium">
+                    {analysis?.video_url ? 'Loading enhanced video player...' : 'Video not available'}
                   </p>
-                </video>
-              ) : (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-white text-center">
-                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-600 flex items-center justify-center">
-                      <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M8 5v14l11-7z"/>
-                      </svg>
-                    </div>
-                    <p className="text-lg font-medium">
-                      {analysis.video_url ? 'Video wird geladen...' : 'Video nicht verfügbar'}
-                    </p>
-                    <p className="text-sm opacity-75">
-                      {analysis.video_url ? 'S3 URL wird abgerufen...' : 'Das Video konnte nicht geladen werden'}
-                    </p>
-                  </div>
-                </div>
-              )}
-              
-              {/* Movement Quality Overlay */}
-              <div className="absolute top-4 left-4 space-y-2">
-                <div className="flex items-center space-x-2 bg-black bg-opacity-75 px-3 py-1 rounded">
-                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                  <span className="text-white text-sm">Gute Bewegung</span>
-                </div>
-                <div className="flex items-center space-x-2 bg-black bg-opacity-75 px-3 py-1 rounded">
-                  <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                  <span className="text-white text-sm">Verbesserungsbedarf</span>
-                </div>
-                <div className="flex items-center space-x-2 bg-black bg-opacity-75 px-3 py-1 rounded">
-                  <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                  <span className="text-white text-sm">Ideallinie</span>
+                  <p className="text-sm opacity-75">
+                    {analysis?.video_url ? 'Preparing route analysis overlay...' : 'Could not load video'}
+                  </p>
                 </div>
               </div>
-              
-              {/* Difficulty Grade Overlay */}
-              <div className="absolute top-4 right-4">
-                <div className="bg-blue-600 text-white px-4 py-2 rounded font-bold">
-                  {analysis.sport_specific_analysis?.difficulty_grade || '5a'}
-                </div>
-              </div>
-            </div>
-            
-            {/* Video Controls */}
-            <div className="mt-4 flex justify-center space-x-4">
-              <Button variant="outline" size="sm">
-                ⏮️ Vorherige Szene
-              </Button>
-              <Button variant="outline" size="sm">
-                ⏯️ Play/Pause
-              </Button>
-              <Button variant="outline" size="sm">
-                ⏭️ Nächste Szene
-              </Button>
-            </div>
+            )}
           </div>
           
-          {/* Movement Analysis Timeline */}
-          <div>
-            <h3 className="text-lg font-medium mb-4">Bewegungsanalyse Timeline</h3>
-            <div className="space-y-3">
-              {/* Mock timeline segments */}
-              <div className="flex items-center space-x-3">
-                <div className="w-4 h-4 bg-green-500 rounded"></div>
-                <div className="flex-1">
-                  <div className="text-sm font-medium">0:00 - 0:15 • Guter Start</div>
-                  <div className="text-xs text-gray-600">Ausgezeichnete Balance und Körperspannung beim Einstieg</div>
+          {/* Enhanced Analysis Panel */}
+          <div className="space-y-6">
+            {/* Route Overview */}
+            <div>
+              <h3 className="text-lg font-medium mb-4">Route Analysis</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <div className="text-sm text-gray-600">Difficulty</div>
+                  <div className="font-bold text-lg">
+                    {analysis.enhanced_insights?.[0] || analysis.sport_specific_analysis?.difficulty_grade || '6a+ / V3'}
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-center space-x-3">
-                <div className="w-4 h-4 bg-yellow-500 rounded"></div>
-                <div className="flex-1">
-                  <div className="text-sm font-medium">0:15 - 0:30 • Mittelteil</div>
-                  <div className="text-xs text-gray-600">Fußtechnik könnte optimiert werden</div>
-                </div>
-              </div>
-              <div className="flex items-center space-x-3">
-                <div className="w-4 h-4 bg-red-500 rounded"></div>
-                <div className="flex-1">
-                  <div className="text-sm font-medium">0:30 - 0:45 • Schwierige Stelle</div>
-                  <div className="text-xs text-gray-600">Übermäßige Armbelastung erkennbar</div>
-                </div>
-              </div>
-              <div className="flex items-center space-x-3">
-                <div className="w-4 h-4 bg-green-500 rounded"></div>
-                <div className="flex-1">
-                  <div className="text-sm font-medium">0:45 - 1:00 • Starkes Finish</div>
-                  <div className="text-xs text-gray-600">Effiziente Schlüsselsequenz zum Top</div>
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <div className="text-sm text-gray-600">Total Moves</div>
+                  <div className="font-bold text-lg">12</div>
                 </div>
               </div>
             </div>
             
-            {/* Ideal Path Visualization */}
-            <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-              <h4 className="font-medium text-blue-900 mb-2">💡 Ideallinie Empfehlung</h4>
-              <p className="text-sm text-blue-800">
-                Die optimale Route würde mehr Beinarbeit in Sekunde 15-30 beinhalten 
-                und eine direktere Linie zum Schlüsselgriff in 0:35 nehmen.
-              </p>
+            {/* Performance Timeline */}
+            <div>
+              <h4 className="text-md font-medium mb-3">Performance Timeline</h4>
+              <div className="space-y-2">
+                <div className="flex items-center space-x-3">
+                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">0:00-3:00 • Excellent Start</div>
+                    <div className="text-xs text-gray-600">Score: 85% - Good body positioning</div>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <div className="w-3 h-3 bg-orange-400 rounded-full"></div>
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">3:00-5:30 • Needs Work</div>
+                    <div className="text-xs text-gray-600">Score: 65% - Inefficient movement</div>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">5:30-8:00 • Great Technique</div>
+                    <div className="text-xs text-gray-600">Score: 90% - Smooth transitions</div>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">8:00-10:30 • Focus Area</div>
+                    <div className="text-xs text-gray-600">Score: 70% - Poor footwork</div>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">10:30-13:00 • Strong Finish</div>
+                    <div className="text-xs text-gray-600">Score: 88% - Excellent balance</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Key Holds */}
+            <div>
+              <h4 className="text-md font-medium mb-3">Key Holds Analysis</h4>
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                  <span>Start Hold</span>
+                  <div className="flex items-center">
+                    <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                    <span className="text-xs text-gray-600">Good grip</span>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                  <span>Crimp (2:10)</span>
+                  <div className="flex items-center">
+                    <div className="w-2 h-2 bg-orange-400 rounded-full mr-2"></div>
+                    <span className="text-xs text-gray-600">Tension needed</span>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                  <span>Jug (4:20)</span>
+                  <div className="flex items-center">
+                    <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                    <span className="text-xs text-gray-600">Rest position</span>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                  <span>Finish Hold</span>
+                  <div className="flex items-center">
+                    <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                    <span className="text-xs text-gray-600">Controlled finish</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Tips */}
+            <div className="p-4 bg-blue-50 rounded-lg">
+              <h4 className="font-medium text-blue-900 mb-2">💡 AI Coaching Tips</h4>
+              <ul className="text-sm text-blue-800 space-y-1">
+                <li>• Focus on static movements to save energy</li>
+                <li>• Improve foot placement during difficult moves</li>
+                <li>• Plan movement sequences before climbing</li>
+                <li>• Strengthen core for better body tension</li>
+              </ul>
             </div>
           </div>
         </div>
