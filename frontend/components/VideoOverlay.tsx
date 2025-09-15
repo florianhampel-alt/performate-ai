@@ -78,7 +78,7 @@ export default function VideoOverlay({ videoUrl, analysisId, className = "" }: V
           
           if (data.has_overlay && data.overlay_elements?.length > 0) {
             console.log('✅ Overlay data looks good, setting up overlays...');
-            data.overlay_elements.forEach((element, i) => {
+            data.overlay_elements.forEach((element: any, i: number) => {
               console.log(`Element ${i}:`, element.type, element);
             });
           } else {
