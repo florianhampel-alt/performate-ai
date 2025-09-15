@@ -74,11 +74,13 @@ export default function VideoUpload() {
       if (uploadResult.analysis_id) {
         setAnalysisId(uploadResult.analysis_id)
         setUploadStatus('completed')
-      } else {
+      } else if (uploadResult.fileId) {
         // Fallback: try startAnalysis if no analysis_id in upload response
         const analysisResult = await startAnalysis(uploadResult.fileId, selectedSport)
         setAnalysisId(analysisResult.analysisId)
         setUploadStatus('completed')
+      } else {
+        throw new Error('No analysis_id or fileId received from upload')
       }
 
     } catch (err) {
