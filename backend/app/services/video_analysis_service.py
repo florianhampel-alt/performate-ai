@@ -3,7 +3,6 @@ Video Analysis Service for Climbing Route Analysis
 Processes videos to detect climbing routes, analyze performance, and generate overlays
 """
 
-import cv2
 import numpy as np
 import tempfile
 import os
