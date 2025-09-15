@@ -37,6 +37,71 @@ async def root():
 async def health_check():
     return {"status": "healthy"}
 
+@app.get("/analysis/{analysis_id}")
+async def get_analysis_results(analysis_id: str):
+    """Get analysis results by analysis ID"""
+    try:
+        # Try to get from Redis cache first
+        cached_result = await redis_service.get_cached_analysis(analysis_id)
+        
+        if cached_result:
+            logger.info(f"Retrieved analysis {analysis_id} from cache")
+            return {
+                "id": analysis_id,
+                "sport_type": cached_result.get('sport_detected', 'climbing'),
+                "analyzer_type": "mediapipe_pose",
+                "overall_performance_score": cached_result.get('performance_score', 70) / 100,
+                "comprehensive_insights": [
+                    {
+                        "category": "technique",
+                        "level": "info",
+                        "message": insight,
+                        "priority": "medium"
+                    } for insight in cached_result.get('key_insights', [])
+                ],
+                "unified_recommendations": cached_result.get('recommendations', []),
+                "sport_specific_analysis": {
+                    "sport_type": cached_result.get('sport_detected', 'climbing'),
+                    "difficulty_grade": cached_result.get('difficulty_grade', '4a'),
+                    "key_metrics": {
+                        "balance": {
+                            "status": "good" if cached_result.get('detailed_metrics', {}).get('balance_score', 0.5) > 0.7 else "needs_improvement",
+                            "score": cached_result.get('detailed_metrics', {}).get('balance_score', 0.5)
+                        },
+                        "efficiency": {
+                            "status": "good" if cached_result.get('detailed_metrics', {}).get('efficiency_score', 0.5) > 0.7 else "needs_improvement",
+                            "score": cached_result.get('detailed_metrics', {}).get('efficiency_score', 0.5)
+                        },
+                        "technique": {
+                            "status": "good" if cached_result.get('detailed_metrics', {}).get('technique_score', 0.5) > 0.7 else "needs_improvement",
+                            "score": cached_result.get('detailed_metrics', {}).get('technique_score', 0.5)
+                        }
+                    },
+                    "safety_considerations": [
+                        "Achte auf sicheren Griff und gute Fußplatzierung",
+                        "Verwende Sicherungsausrüstung in angemessener Höhe"
+                    ],
+                    "training_recommendations": cached_result.get('recommendations', [])
+                },
+                "analysis_summary": {
+                    "analyzers_used": 1,
+                    "total_insights": len(cached_result.get('key_insights', [])),
+                    "recommendations_count": len(cached_result.get('recommendations', [])),
+                    "overall_score": cached_result.get('performance_score', 70)
+                },
+                "metadata": {
+                    "analysis_type": "climbing_pose_analysis",
+                    "timestamp": analysis_id[:8] + "-" + analysis_id[8:12] + "-" + analysis_id[12:16] + "-" + analysis_id[16:20] + "-" + analysis_id[20:]
+                }
+            }
+        else:
+            # Analysis not found
+            raise HTTPException(status_code=404, detail=f"Analysis {analysis_id} not found")
+            
+    except Exception as e:
+        logger.error(f"Error retrieving analysis {analysis_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving analysis: {str(e)}")
+
 @app.post("/upload")
 async def upload_video(file: UploadFile = File(...)):
     """Upload video with basic AI analysis (simplified for deployment)"""
