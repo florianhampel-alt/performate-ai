@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Play, Pause, RotateCcw, Info } from 'lucide-react';
+import { Play, Pause, RotateCcw, Info, Maximize, Minimize } from 'lucide-react';
 
 interface RoutePoint {
   x: number;
@@ -60,6 +60,7 @@ export default function VideoOverlay({ videoUrl, analysisId, className = "", ana
   const [duration, setDuration] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   
   // Fetch overlay data
   useEffect(() => {
@@ -404,6 +405,26 @@ export default function VideoOverlay({ videoUrl, analysisId, className = "", ana
       window.removeEventListener('orientationchange', handleOrientationChange);
     };
   }, [overlayData, drawOverlay]);
+  
+  // Handle escape key to exit fullscreen
+  useEffect(() => {
+    const handleKeyPress = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isFullscreen) {
+        setIsFullscreen(false);
+        // Force overlay redraw after fullscreen exit
+        setTimeout(() => {
+          if (overlayData?.has_overlay) {
+            drawOverlay();
+          }
+        }, 100);
+      }
+    };
+    
+    if (isFullscreen) {
+      document.addEventListener('keydown', handleKeyPress);
+      return () => document.removeEventListener('keydown', handleKeyPress);
+    }
+  }, [isFullscreen, overlayData, drawOverlay]);
 
   // Control handlers
   const togglePlayPause = () => {
@@ -422,6 +443,16 @@ export default function VideoOverlay({ videoUrl, analysisId, className = "", ana
       setCurrentTime(0);
     }
   };
+  
+  const toggleFullscreen = () => {
+    setIsFullscreen(!isFullscreen);
+    // Force overlay redraw after fullscreen change
+    setTimeout(() => {
+      if (overlayData?.has_overlay) {
+        drawOverlay();
+      }
+    }, 100);
+  };
 
   const formatTime = (time: number) => {
     const mins = Math.floor(time / 60);
@@ -438,19 +469,40 @@ export default function VideoOverlay({ videoUrl, analysisId, className = "", ana
   }
 
   return (
-    <div ref={containerRef} className={`relative bg-black rounded-lg overflow-hidden ${className}`}>
+    <div 
+      ref={containerRef} 
+      className={`relative bg-black rounded-lg overflow-hidden ${className} ${
+        isFullscreen 
+          ? 'fixed inset-0 z-50 rounded-none' 
+          : ''
+      }`}
+      style={isFullscreen ? { maxHeight: '100vh' } : {}}
+    >
       {/* Video Container with Aspect Ratio */}
-      <div className="relative w-full" style={{ maxHeight: '70vh' }}>
+      <div 
+        className="relative w-full" 
+        style={{ 
+          maxHeight: isFullscreen ? '100vh' : '70vh',
+          height: isFullscreen ? '100vh' : 'auto'
+        }}
+      >
         {/* Video Element */}
         <video
           ref={videoRef}
           src={videoUrl}
-          className="w-full h-auto max-h-[70vh] object-contain"
+          className={`w-full object-contain ${
+            isFullscreen 
+              ? 'h-full max-h-[100vh]' 
+              : 'h-auto max-h-[70vh]'
+          }`}
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={handleLoadedMetadata}
           onPlay={handlePlay}
           onPause={handlePause}
           preload="metadata"
+          playsInline={true}  // Prevent native fullscreen on mobile
+          controls={false}    // Disable native controls to prevent fullscreen
+          webkit-playsinline="true"  // iOS specific
         />
         
         {/* Canvas Overlay */}
@@ -470,7 +522,7 @@ export default function VideoOverlay({ videoUrl, analysisId, className = "", ana
       </div>
       
       {/* Info Panel */}
-      {overlayData?.has_overlay && (
+      {overlayData?.has_overlay && !isFullscreen && (
         <div className="absolute top-4 left-4 bg-black bg-opacity-70 text-white p-3 rounded-lg" style={{ zIndex: 2 }}>
           <div className="flex items-center gap-2 mb-2">
             <Info size={16} />
@@ -511,6 +563,14 @@ export default function VideoOverlay({ videoUrl, analysisId, className = "", ana
             className="flex items-center justify-center w-10 h-10 bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full transition-all"
           >
             <RotateCcw size={18} />
+          </button>
+          
+          <button
+            onClick={toggleFullscreen}
+            className="flex items-center justify-center w-10 h-10 bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full transition-all"
+            title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+          >
+            {isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
           </button>
           
           <div className="flex-1 flex items-center gap-2 text-sm">
