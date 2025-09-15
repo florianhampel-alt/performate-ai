@@ -44,6 +44,23 @@ async def root():
 async def health_check():
     return {"status": "healthy"}
 
+@app.get("/debug/videos")
+async def debug_videos():
+    """Debug endpoint to list all stored videos"""
+    return {
+        "video_storage_count": len(video_storage),
+        "stored_video_ids": list(video_storage.keys()),
+        "video_details": {
+            video_id: {
+                "storage_type": info.get("storage_type"),
+                "filename": info.get("filename"),
+                "size_mb": info.get("size", 0) / (1024 * 1024) if info.get("size") else 0,
+                "s3_key": info.get("s3_key", "N/A")
+            }
+            for video_id, info in video_storage.items()
+        }
+    }
+
 @app.options("/upload")
 async def upload_options():
     """Handle CORS preflight for upload endpoint"""
@@ -289,16 +306,21 @@ async def upload_video(file: UploadFile = File(...)):
                 logger.info(f"S3 upload completed in {upload_time:.1f}s ({speed_mbps:.1f} MB/s)")
                 
                 if s3_key:
+                    upload_time = time.time() - upload_start
+                    speed_mbps = (actual_size / (1024 * 1024)) / upload_time if upload_time > 0 else 0
+                    logger.info(f"S3 upload completed in {upload_time:.1f}s ({speed_mbps:.1f} MB/s)")
                     logger.info(f"Successfully uploaded video to S3: {s3_key}")
+                    
                     # Store minimal metadata in memory for quick access
                     video_storage[analysis_id] = {
                         's3_key': s3_key,
                         'filename': file.filename,
                         'content_type': file.content_type,
-                        'size': file_size,
+                        'size': actual_size,
                         'timestamp': uuid.uuid4().hex[:8],
                         'storage_type': 's3'
                     }
+                    logger.info(f"Video metadata stored for analysis_id: {analysis_id}")
                 else:
                     logger.warning("S3 upload failed, falling back to memory storage")
                     raise Exception("S3 upload failed")
@@ -307,8 +329,11 @@ async def upload_video(file: UploadFile = File(...)):
                 
         except Exception as s3_error:
             # Fallback to memory storage
-            logger.warning(f"S3 storage failed ({str(s3_error)}), using memory storage")
-            if file_size > 100 * 1024 * 1024:  # 100MB limit for memory
+            logger.error(f"S3 storage failed ({str(s3_error)}), using memory storage")
+            logger.error(f"S3 error details: {type(s3_error).__name__}: {str(s3_error)}")
+            
+            if actual_size > 100 * 1024 * 1024:  # 100MB limit for memory
+                logger.error(f"File too large for memory fallback: {actual_size/(1024*1024):.1f}MB")
                 raise HTTPException(
                     status_code=413, 
                     detail="File too large for memory storage and S3 unavailable. Configure S3 for large files."
@@ -318,11 +343,12 @@ async def upload_video(file: UploadFile = File(...)):
                 'content': contents,
                 'filename': file.filename,
                 'content_type': file.content_type,
-                'size': file_size,
+                'size': actual_size,
                 'timestamp': uuid.uuid4().hex[:8],
                 'storage_type': 'memory'
             }
-            logger.info(f"Video stored in memory (fallback): {analysis_id} ({file_size / 1024 / 1024:.1f}MB)")
+            logger.info(f"Video stored in memory (fallback): {analysis_id} ({actual_size / 1024 / 1024:.1f}MB)")
+            logger.info(f"Current video_storage keys: {list(video_storage.keys())}")
             
             # 3. Detektiere Sport-Typ
             sport_detected = detect_sport_from_filename(file.filename)
