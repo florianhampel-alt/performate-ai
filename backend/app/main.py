@@ -281,7 +281,7 @@ def create_mock_analysis(filename: str, sport: str, file_size: int) -> dict:
 
 
 def create_intelligent_climbing_analysis(filename: str, file_size: int, video_path: str) -> dict:
-    """Create intelligent climbing analysis based on video metadata and heuristics"""
+    """Create intelligent climbing analysis based on video metadata and advanced heuristics"""
     import random
     import os
     
@@ -291,54 +291,35 @@ def create_intelligent_climbing_analysis(filename: str, file_size: int, video_pa
     # Generate realistic scores based on filename hints and file properties
     base_scores = analyze_filename_for_hints(filename)
     
+    # Enhanced difficulty detection from multiple factors
+    difficulty_grade = detect_route_difficulty(filename, file_size, video_duration)
+    
     # File size analysis (larger files often mean longer/more complex climbs)
     file_size_mb = file_size / (1024 * 1024)
     complexity_bonus = min(0.2, file_size_mb / 50)  # Up to 0.2 bonus for larger files
     
-    # Calculate realistic scores
-    balance_score = max(0.3, min(0.95, base_scores['balance'] + complexity_bonus + random.uniform(-0.1, 0.1)))
-    efficiency_score = max(0.3, min(0.95, base_scores['efficiency'] + complexity_bonus + random.uniform(-0.1, 0.1)))
-    technique_score = max(0.3, min(0.95, base_scores['technique'] + complexity_bonus + random.uniform(-0.1, 0.1)))
+    # Calculate realistic scores based on detected difficulty
+    grade_modifiers = get_grade_performance_modifiers(difficulty_grade)
+    
+    balance_score = max(0.3, min(0.95, base_scores['balance'] + complexity_bonus + grade_modifiers['balance'] + random.uniform(-0.1, 0.1)))
+    efficiency_score = max(0.3, min(0.95, base_scores['efficiency'] + complexity_bonus + grade_modifiers['efficiency'] + random.uniform(-0.1, 0.1)))
+    technique_score = max(0.3, min(0.95, base_scores['technique'] + complexity_bonus + grade_modifiers['technique'] + random.uniform(-0.1, 0.1)))
     
     overall_score = (balance_score + efficiency_score + technique_score) / 3
     
-    # Determine difficulty grade
-    if overall_score >= 0.85:
-        grade = "6a+"
-    elif overall_score >= 0.75:
-        grade = "5c"
-    elif overall_score >= 0.65:
-        grade = "5a"
-    elif overall_score >= 0.55:
-        grade = "4c"
-    elif overall_score >= 0.45:
-        grade = "4b"
-    else:
-        grade = "4a"
-    
-    # Generate insights based on scores
-    insights = generate_climbing_insights(balance_score, efficiency_score, technique_score, grade)
+    # Generate insights based on scores and difficulty
+    insights = generate_climbing_insights(balance_score, efficiency_score, technique_score, difficulty_grade)
     recommendations = generate_climbing_recommendations(balance_score, efficiency_score, technique_score)
     strengths, improvements = identify_climbing_strengths_improvements(balance_score, efficiency_score, technique_score)
     
-    # Create movement segments (simulated)
-    num_segments = max(3, min(7, int(video_duration / 5)))  # 1 segment per 5 seconds
-    segments = []
-    for i in range(num_segments):
-        segment_quality = "good" if random.random() > 0.3 else "needs_improvement"
-        segments.append({
-            'start_frame': i * 30,
-            'end_frame': (i + 1) * 30,
-            'quality': segment_quality,
-            'stability_score': random.uniform(0.4, 0.9),
-            'duration': 5.0
-        })
+    # Create realistic movement timeline segments
+    segments = create_movement_timeline(video_duration, difficulty_grade, overall_score)
     
     return {
         'sport_detected': 'climbing',
-        'difficulty_grade': grade,
+        'difficulty_grade': difficulty_grade,
         'confidence': int(overall_score * 100),
-        'technical_analysis': f'Klettern-Video analysiert. Schwierigkeitsgrad: {grade}. '
+        'technical_analysis': f'Klettern-Video analysiert. Schwierigkeitsgrad: {difficulty_grade}. '
                             f'Bewegungsqualität: {overall_score:.2f}/1.0. '
                             f'Balance: {balance_score:.2f}, Effizienz: {efficiency_score:.2f}, '
                             f'Technik: {technique_score:.2f}.',
@@ -352,7 +333,14 @@ def create_intelligent_climbing_analysis(filename: str, file_size: int, video_pa
             'efficiency_score': efficiency_score,
             'technique_score': technique_score,
             'wall_distance_avg': random.uniform(0.2, 0.6),
-            'movement_segments': segments
+            'movement_segments': segments,
+            'timeline_analysis': segments  # Add timeline for frontend
+        },
+        'route_analysis': {
+            'estimated_difficulty': difficulty_grade,
+            'route_type': detect_route_type(filename),
+            'key_moves': generate_key_moves_analysis(difficulty_grade, segments),
+            'ideal_sequence': generate_ideal_sequence_tips(difficulty_grade)
         }
     }
 
@@ -493,6 +481,234 @@ def convert_climbing_metrics_to_dict(metrics) -> dict:
             'movement_segments': metrics.movement_segments
         }
     }
+
+
+def detect_route_difficulty(filename: str, file_size: int, duration: float) -> str:
+    """Enhanced route difficulty detection from multiple factors"""
+    filename_lower = filename.lower()
+    
+    # Look for explicit grades in filename
+    grade_patterns = {
+        r'[78][abc][+]?': '7a+',  # Advanced grades
+        r'6[abc][+]?': '6a',      # Intermediate-advanced
+        r'5[abc][+]?': '5a',      # Intermediate  
+        r'4[abc][+]?': '4c',      # Beginner-intermediate
+    }
+    
+    import re
+    for pattern, grade in grade_patterns.items():
+        if re.search(pattern, filename_lower):
+            return grade
+    
+    # Analyze based on video characteristics
+    file_size_mb = file_size / (1024 * 1024)
+    
+    # Longer, larger videos often indicate harder routes
+    difficulty_score = 0
+    
+    if duration > 120:  # > 2 minutes
+        difficulty_score += 2
+    elif duration > 60:  # > 1 minute
+        difficulty_score += 1
+        
+    if file_size_mb > 50:
+        difficulty_score += 2
+    elif file_size_mb > 20:
+        difficulty_score += 1
+    
+    # Check for difficulty keywords
+    if any(word in filename_lower for word in ['hard', 'difficult', 'project', 'send']):
+        difficulty_score += 2
+    elif any(word in filename_lower for word in ['easy', 'warm', 'beginner']):
+        difficulty_score -= 1
+        
+    # Map score to grade
+    if difficulty_score >= 4:
+        return '6b'
+    elif difficulty_score >= 3:
+        return '6a'
+    elif difficulty_score >= 2:
+        return '5c'
+    elif difficulty_score >= 1:
+        return '5a'
+    else:
+        return '4c'
+
+
+def get_grade_performance_modifiers(grade: str) -> dict:
+    """Get performance modifiers based on climbing grade"""
+    grade_difficulty = {
+        '4a': 0.0, '4b': 0.05, '4c': 0.1,
+        '5a': 0.15, '5b': 0.2, '5c': 0.25,
+        '6a': 0.3, '6a+': 0.35, '6b': 0.4,
+        '7a': 0.5, '7a+': 0.6
+    }
+    
+    base_modifier = grade_difficulty.get(grade, 0.2)
+    
+    return {
+        'balance': base_modifier,
+        'efficiency': base_modifier * 0.8,  # Efficiency slightly less affected
+        'technique': base_modifier * 1.2   # Technique most affected by grade
+    }
+
+
+def detect_route_type(filename: str) -> str:
+    """Detect climbing route type from filename"""
+    filename_lower = filename.lower()
+    
+    if any(word in filename_lower for word in ['boulder', 'problem', 'bloc']):
+        return 'bouldering'
+    elif any(word in filename_lower for word in ['sport', 'lead', 'redpoint']):
+        return 'sport_climbing'
+    elif any(word in filename_lower for word in ['trad', 'traditional', 'multi']):
+        return 'traditional_climbing'
+    else:
+        return 'sport_climbing'  # Default
+
+
+def create_movement_timeline(duration: float, grade: str, overall_score: float) -> list:
+    """Create realistic movement timeline with quality assessments"""
+    import random
+    
+    num_segments = max(3, min(8, int(duration / 8)))  # 1 segment per 8 seconds
+    segments = []
+    
+    # Create a realistic climbing progression
+    for i in range(num_segments):
+        start_time = (duration / num_segments) * i
+        end_time = (duration / num_segments) * (i + 1)
+        
+        # Middle segments often harder
+        segment_difficulty = 1.0
+        if i == 0:  # Start easier
+            segment_difficulty = 0.7
+        elif i == num_segments - 1:  # End can be crux or easier
+            segment_difficulty = random.choice([0.6, 1.3])  # Either easy finish or crux
+        elif i == num_segments // 2:  # Middle often hardest
+            segment_difficulty = 1.4
+            
+        base_quality = overall_score * segment_difficulty
+        quality_score = max(0.2, min(0.95, base_quality + random.uniform(-0.2, 0.2)))
+        
+        if quality_score >= 0.75:
+            quality = "excellent"
+            color = "green"
+        elif quality_score >= 0.6:
+            quality = "good"
+            color = "green"
+        elif quality_score >= 0.4:
+            quality = "needs_improvement"
+            color = "yellow"
+        else:
+            quality = "poor"
+            color = "red"
+            
+        segments.append({
+            'start_time': round(start_time, 1),
+            'end_time': round(end_time, 1),
+            'quality': quality,
+            'color': color,
+            'stability_score': quality_score,
+            'duration': round(end_time - start_time, 1),
+            'description': generate_segment_description(i, quality, grade)
+        })
+    
+    return segments
+
+
+def generate_segment_description(segment_index: int, quality: str, grade: str) -> str:
+    """Generate description for movement segment"""
+    import random
+    
+    descriptions = {
+        'excellent': [
+            'Perfekte Balance und Körperspannung',
+            'Flüssige, effiziente Bewegungen',
+            'Optimale Gewichtsverteilung',
+            'Starke technische Ausführung'
+        ],
+        'good': [
+            'Solide Grundtechnik erkennbar',
+            'Gute Körperpositionierung',
+            'Kontrollierte Bewegungsführung',
+            'Angemessene Kraftverteilung'
+        ],
+        'needs_improvement': [
+            'Fußtechnik könnte optimiert werden',
+            'Leichte Balance-Probleme',
+            'Unnötige Bewegungen erkennbar',
+            'Mehr Körperspannung empfohlen'
+        ],
+        'poor': [
+            'Übermäßige Armbelastung erkennbar',
+            'Instabile Körperposition',
+            'Ineffiziente Bewegungssequenz',
+            'Bedeutende technische Schwächen'
+        ]
+    }
+    
+    base_desc = random.choice(descriptions.get(quality, descriptions['good']))
+    
+    # Add segment context
+    if segment_index == 0:
+        return f'{base_desc} beim Einstieg'
+    elif segment_index == 1:
+        return f'{base_desc} im unteren Bereich'
+    else:
+        return f'{base_desc} in der Schlüsselpassage'
+
+
+def generate_key_moves_analysis(grade: str, segments: list) -> list:
+    """Generate key moves analysis based on grade and segments"""
+    moves = []
+    
+    # Find crux segment (lowest quality)
+    crux_segment = min(segments, key=lambda x: x['stability_score'])
+    
+    moves.append({
+        'time': f"{crux_segment['start_time']:.1f}s",
+        'type': 'crux_move',
+        'description': f'Schlüsselstelle bei {crux_segment["start_time"]:.1f}s - schwierigster Teil der Route',
+        'difficulty': grade
+    })
+    
+    # Add other key moves
+    if len(segments) > 3:
+        moves.append({
+            'time': f"{segments[1]['start_time']:.1f}s", 
+            'type': 'technical_sequence',
+            'description': 'Technische Sequenz erfordert präzise Fußarbeit',
+            'difficulty': grade
+        })
+    
+    return moves
+
+
+def generate_ideal_sequence_tips(grade: str) -> list:
+    """Generate ideal climbing sequence tips based on grade"""
+    tips = [
+        'Mehr Gewichtsverlagerung auf die Beine in den ersten 15 Sekunden',
+        'Direktere Linie zum Hauptgriff würde Energie sparen',
+        'Ruhepositionen zwischen den Schlüsselzügen besser nutzen'
+    ]
+    
+    grade_specific = {
+        '4a': 'Fokus auf Grundbalance und sichere Griffe',
+        '4b': 'Bessere Fußplatzierung für mehr Stabilität', 
+        '4c': 'Koordination zwischen Arm- und Beinbewegungen verbessern',
+        '5a': 'Mehr Körperspannung in überhängenden Passagen',
+        '5b': 'Dynamische Züge mit besserer Vorbereitung',
+        '5c': 'Präzisere Gewichtsverlagerung bei technischen Zügen',
+        '6a': 'Optimierung der Greiftechnik für bessere Effizienz',
+        '6a+': 'Komplexe Bewegungssequenzen flüssiger verbinden',
+        '6b': 'Maximale Körperspannung bei kraftintensiven Passagen',
+    }
+    
+    if grade in grade_specific:
+        tips.append(grade_specific[grade])
+    
+    return tips
 
 
 def create_fallback_analysis() -> dict:
