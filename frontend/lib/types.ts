@@ -5,9 +5,12 @@ export type SportType = 'climbing' | 'bouldering' | 'skiing' | 'motocross' | 'mo
 export type UploadStatus = 'idle' | 'uploading' | 'uploaded' | 'analyzing' | 'completed' | 'error'
 
 export interface UploadResponse {
-  fileId: string
+  fileId?: string
+  analysis_id?: string  // Backend returns this directly
   uploadUrl?: string
-  message: string
+  message?: string
+  filename?: string
+  status?: string
 }
 
 // Analysis types
