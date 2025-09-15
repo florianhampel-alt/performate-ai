@@ -66,6 +66,8 @@ export default function VideoOverlay({ videoUrl, analysisId, className = "", ana
     const fetchOverlayData = async () => {
       try {
         // Try to use passed analysis data first
+        console.log('📊 Raw analysis data received:', analysisData);
+        
         if (analysisData?.overlay_data) {
           console.log('📊 Using overlay data from analysis:', analysisData.overlay_data);
           console.log('🎯 Has overlay:', analysisData.overlay_data.has_overlay);
@@ -73,7 +75,7 @@ export default function VideoOverlay({ videoUrl, analysisId, className = "", ana
           
           const overlayData = {
             has_overlay: analysisData.overlay_data.has_overlay || false,
-            overlay_elements: analysisData.overlay_data.elements || [],
+            overlay_elements: analysisData.overlay_data.elements || [],  // Backend uses 'elements', not 'overlay_elements'
             video_dimensions: analysisData.overlay_data.video_dimensions || { width: 640, height: 480 },
             total_duration: analysisData.overlay_data.total_duration || 15.0,
             route_info: {
@@ -108,16 +110,22 @@ export default function VideoOverlay({ videoUrl, analysisId, className = "", ana
           console.log('🎯 Has overlay:', data.has_overlay);
           console.log('📍 Overlay elements count:', data.overlay_elements?.length || 0);
           
-          if (data.has_overlay && data.overlay_elements?.length > 0) {
+          // Map API response to expected format
+          const mappedData = {
+            ...data,
+            overlay_elements: data.overlay_elements || data.elements || []  // Handle both possible keys
+          };
+          
+          if (mappedData.has_overlay && mappedData.overlay_elements?.length > 0) {
             console.log('✅ Overlay data looks good, setting up overlays...');
-            data.overlay_elements.forEach((element: any, i: number) => {
+            mappedData.overlay_elements.forEach((element: any, i: number) => {
               console.log(`Element ${i}:`, element.type, element);
             });
           } else {
             console.warn('⚠️ No overlay elements found');
           }
           
-          setOverlayData(data);
+          setOverlayData(mappedData);
         } else {
           console.warn('⚠️ No overlay data available, status:', response.status);
           const errorText = await response.text();
