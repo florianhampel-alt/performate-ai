@@ -62,6 +62,7 @@ export interface AnalysisResult {
   unified_recommendations: string[]
   sport_specific_analysis: SportSpecificAnalysis
   analysis_summary: AnalysisSummary
+  video_url?: string  // URL to play the uploaded video
   metadata?: {
     analysis_type: string
     timestamp: string

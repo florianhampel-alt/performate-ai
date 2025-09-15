@@ -7,6 +7,7 @@ import os
 import tempfile
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from app.config.base import settings
 from app.services.redis_service import redis_service
 from app.utils.logger import get_logger
@@ -36,6 +37,23 @@ async def root():
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
+
+@app.get("/videos/{video_id}")
+async def serve_video(video_id: str):
+    """Serve video file for playback"""
+    try:
+        video_path = f"./uploads/{video_id}.mp4"
+        if not os.path.exists(video_path):
+            raise HTTPException(status_code=404, detail="Video not found")
+            
+        return FileResponse(
+            video_path,
+            media_type="video/mp4",
+            headers={"Accept-Ranges": "bytes"}
+        )
+    except Exception as e:
+        logger.error(f"Error serving video {video_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error serving video: {str(e)}")
 
 @app.get("/analysis/{analysis_id}")
 async def get_analysis_results(analysis_id: str):
@@ -67,6 +85,7 @@ async def get_analysis_results(analysis_id: str):
             "sport_type": analysis_result.get('sport_detected', 'climbing'),
             "analyzer_type": "intelligent_analysis",
             "overall_performance_score": analysis_result.get('performance_score', 70) / 100,
+            "video_url": f"/videos/{analysis_id}",  # Add video URL for playback
             "comprehensive_insights": [
                 {
                     "category": "technique",
@@ -133,27 +152,36 @@ async def upload_video(file: UploadFile = File(...)):
         contents = await file.read()
         file_size = len(contents)
         
-        # Save to temporary file
-        temp_video_path = None
+        # Save video permanently for playback
+        video_storage_dir = "./uploads"
+        os.makedirs(video_storage_dir, exist_ok=True)
+        
+        # Create permanent file with analysis_id
+        video_filename = f"{analysis_id}.mp4"
+        video_path = os.path.join(video_storage_dir, video_filename)
+        
         try:
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as temp_file:
-                temp_video_path = temp_file.name
-                temp_file.write(contents)
+            # Write video to permanent storage
+            with open(video_path, 'wb') as video_file:
+                video_file.write(contents)
+            
+            logger.info(f"Video saved permanently to: {video_path}")
             
             # 3. Detektiere Sport-Typ
             sport_detected = detect_sport_from_filename(file.filename)
             
             # 4. Führe erweiterte Klettern-Analyse durch (intelligente Simulation)
             if sport_detected in ['climbing', 'bouldering']:
-                analysis_result = create_intelligent_climbing_analysis(file.filename, file_size, temp_video_path)
+                analysis_result = create_intelligent_climbing_analysis(file.filename, file_size, video_path)
             else:
                 # Fallback für andere Sports
                 analysis_result = create_mock_analysis(file.filename, sport_detected, file_size)
                 
-        finally:
-            # Clean up temporary file
-            if temp_video_path and os.path.exists(temp_video_path):
-                os.unlink(temp_video_path)
+        except Exception as e:
+            # Clean up on error
+            if os.path.exists(video_path):
+                os.unlink(video_path)
+            raise e
         
         # 5. Cache Ergebnis in Redis (falls verfügbar)
         try:
@@ -171,7 +199,8 @@ async def upload_video(file: UploadFile = File(...)):
             "analysis": analysis_result,
             "status": "completed",
             "timestamp": f"{analysis_id[:8]}-{analysis_id[8:12]}-{analysis_id[12:16]}-{analysis_id[16:20]}-{analysis_id[20:]}",
-            "processing_time_ms": 1500  # Simuliert
+            "processing_time_ms": 1500,  # Simuliert
+            "video_url": f"/videos/{analysis_id}"  # Add video URL for later playback
         }
         
         logger.info(f"Analysis completed successfully: {analysis_id}")

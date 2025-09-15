@@ -88,18 +88,38 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
           {/* Video Player */}
           <div className="relative">
             <div className="aspect-video bg-gray-900 rounded-lg overflow-hidden relative">
-              {/* Placeholder for video - in real implementation, this would be the actual video */}
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-white text-center">
-                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-600 flex items-center justify-center">
-                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M8 5v14l11-7z"/>
-                    </svg>
+              {/* Real HTML5 Video Player */}
+              {analysis.video_url ? (
+                <video 
+                  className="w-full h-full object-cover"
+                  controls
+                  preload="metadata"
+                  poster="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1920 1080'%3E%3Crect width='1920' height='1080' fill='%23111827'/%3E%3C/svg%3E"
+                >
+                  <source 
+                    src={`https://performate-ai.onrender.com${analysis.video_url}`} 
+                    type="video/mp4" 
+                  />
+                  <p className="text-white text-center p-4">
+                    Ihr Browser unterstützt keine HTML5-Videos. 
+                    <a href={`https://performate-ai.onrender.com${analysis.video_url}`} className="text-blue-400 underline">
+                      Direkter Download
+                    </a>
+                  </p>
+                </video>
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="text-white text-center">
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-600 flex items-center justify-center">
+                      <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M8 5v14l11-7z"/>
+                      </svg>
+                    </div>
+                    <p className="text-lg font-medium">Video nicht verfügbar</p>
+                    <p className="text-sm opacity-75">Das Video konnte nicht geladen werden</p>
                   </div>
-                  <p className="text-lg font-medium">Video Player</p>
-                  <p className="text-sm opacity-75">Click to play your climbing analysis</p>
                 </div>
-              </div>
+              )}
               
               {/* Movement Quality Overlay */}
               <div className="absolute top-4 left-4 space-y-2">
