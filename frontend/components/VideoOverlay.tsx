@@ -162,11 +162,25 @@ export default function VideoOverlay({ videoUrl, analysisId, className = "", ana
   const handleLoadedMetadata = useCallback(() => {
     if (videoRef.current) {
       setDuration(videoRef.current.duration);
+      
+      // Trigger initial overlay render after video metadata is loaded
+      if (overlayData?.has_overlay) {
+        setTimeout(() => drawOverlay(), 200);
+      }
     }
-  }, []);
+  }, [overlayData, drawOverlay]);
 
-  const handlePlay = useCallback(() => setIsPlaying(true), []);
-  const handlePause = useCallback(() => setIsPlaying(false), []);
+  const handlePlay = useCallback(() => {
+    setIsPlaying(true);
+    // Force overlay redraw when video starts (mobile fix)
+    if (overlayData?.has_overlay) {
+      setTimeout(() => drawOverlay(), 50);
+    }
+  }, [overlayData, drawOverlay]);
+  
+  const handlePause = useCallback(() => {
+    setIsPlaying(false);
+  }, []);
 
   // Draw overlay on canvas
   const drawOverlay = useCallback(() => {
@@ -174,37 +188,46 @@ export default function VideoOverlay({ videoUrl, analysisId, className = "", ana
     const video = videoRef.current;
     
     if (!canvas || !video) {
-      console.log('🚫 Canvas or video not available for drawing');
+      console.log('🙫 Canvas or video not available for drawing');
       return;
     }
     
     if (!overlayData?.has_overlay) {
-      console.log('🚫 No overlay data available for drawing');
+      console.log('🙫 No overlay data available for drawing');
       return;
     }
     
     const ctx = canvas.getContext('2d');
     if (!ctx) {
-      console.log('🚫 Could not get canvas context');
+      console.log('🙫 Could not get canvas context');
       return;
     }
 
-    // Set canvas size to match video display size
-    // Use actual video display dimensions
-    const displayWidth = video.offsetWidth;
-    const displayHeight = video.offsetHeight;
+    // Get actual video element dimensions for mobile compatibility
+    const videoRect = video.getBoundingClientRect();
+    const displayWidth = videoRect.width;
+    const displayHeight = videoRect.height;
     
-    canvas.width = displayWidth;
-    canvas.height = displayHeight;
+    // Set canvas size with device pixel ratio for sharp rendering on mobile
+    const devicePixelRatio = window.devicePixelRatio || 1;
+    canvas.width = displayWidth * devicePixelRatio;
+    canvas.height = displayHeight * devicePixelRatio;
     
-    console.log(`🎨 Drawing overlay: ${displayWidth}x${displayHeight}, video time: ${currentTime.toFixed(2)}s`);
+    // Scale canvas CSS size to match video
+    canvas.style.width = `${displayWidth}px`;
+    canvas.style.height = `${displayHeight}px`;
+    
+    // Scale drawing context for high DPI displays
+    ctx.scale(devicePixelRatio, devicePixelRatio);
+    
+    console.log(`🎨 Mobile-optimized drawing: ${displayWidth}x${displayHeight}, DPR: ${devicePixelRatio}, video time: ${currentTime.toFixed(2)}s`);
     
     // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0, 0, displayWidth, displayHeight);
     
-    // Calculate scale factors
-    const scaleX = canvas.width / (overlayData.video_dimensions?.width || 640);
-    const scaleY = canvas.height / (overlayData.video_dimensions?.height || 480);
+    // Calculate scale factors (use display dimensions, not canvas buffer dimensions)
+    const scaleX = displayWidth / (overlayData.video_dimensions?.width || 640);
+    const scaleY = displayHeight / (overlayData.video_dimensions?.height || 480);
     
     console.log(`📏 Scale factors: ${scaleX.toFixed(2)}x, ${scaleY.toFixed(2)}y`);
     
@@ -356,6 +379,31 @@ export default function VideoOverlay({ videoUrl, analysisId, className = "", ana
       drawOverlay();
     }
   }, [drawOverlay]);
+  
+  // Handle resize and orientation changes on mobile
+  useEffect(() => {
+    const handleResize = () => {
+      if (overlayData?.has_overlay) {
+        // Delay to allow video to resize first
+        setTimeout(() => drawOverlay(), 100);
+      }
+    };
+    
+    const handleOrientationChange = () => {
+      if (overlayData?.has_overlay) {
+        // Longer delay for orientation changes
+        setTimeout(() => drawOverlay(), 300);
+      }
+    };
+    
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleOrientationChange);
+    
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleOrientationChange);
+    };
+  }, [overlayData, drawOverlay]);
 
   // Control handlers
   const togglePlayPause = () => {
@@ -410,7 +458,13 @@ export default function VideoOverlay({ videoUrl, analysisId, className = "", ana
           <canvas
             ref={canvasRef}
             className="absolute inset-0 w-full h-full pointer-events-none"
-            style={{ zIndex: 1 }}
+            style={{ 
+              zIndex: 1,
+              touchAction: 'none', // Prevent touch scrolling on mobile
+              WebkitTouchCallout: 'none',
+              WebkitUserSelect: 'none',
+              userSelect: 'none'
+            }}
           />
         )}
       </div>
