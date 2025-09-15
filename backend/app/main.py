@@ -24,13 +24,15 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS middleware - Allow all origins for now
+# CORS middleware - Allow all origins to fix Vercel deployment CORS issues
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Temporary: allow all origins
+    allow_origins=["*"],  # Allow all origins - required for Vercel preview deployments
     allow_credentials=False,  # Must be False when allow_origins=["*"]
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=86400  # Cache preflight response for 24 hours
 )
 
 @app.get("/")
@@ -40,6 +42,11 @@ async def root():
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
+
+@app.options("/upload")
+async def upload_options():
+    """Handle CORS preflight for upload endpoint"""
+    return {"message": "OK"}
 
 @app.get("/videos/{video_id}")
 async def serve_video(video_id: str):
