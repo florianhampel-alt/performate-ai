@@ -67,6 +67,24 @@ export interface AnalysisResult {
     analysis_type: string
     timestamp: string
   }
+  // Enhanced analysis properties
+  route_analysis?: {
+    route_detected: boolean
+    difficulty_estimated?: string
+    total_moves?: number
+    overall_score?: number
+    key_insights?: string[]
+    recommendations?: string[]
+  }
+  overlay_data?: {
+    has_overlay: boolean
+    elements?: any[]
+    video_dimensions?: { width: number; height: number }
+    total_duration?: number
+  }
+  has_route_overlay?: boolean
+  enhanced_insights?: string[]
+  difficulty_estimated?: string
 }
 
 // UI Component types
