@@ -61,6 +61,44 @@ async def debug_videos():
         }
     }
 
+@app.get("/debug/redis/{video_id}")
+async def debug_redis_video(video_id: str):
+    """Debug endpoint to check Redis data for specific video"""
+    try:
+        redis_data = {}
+        
+        # Check video metadata
+        try:
+            meta_data = await redis_service.get_json(f"video_meta:{video_id}")
+            redis_data["video_meta"] = meta_data
+        except Exception as e:
+            redis_data["video_meta_error"] = str(e)
+        
+        # Check video data (Base64)
+        try:
+            video_data = await redis_service.get_json(f"video:{video_id}")
+            if video_data:
+                redis_data["video_data"] = {k: v if k != "video_data" else f"[{len(v)} chars]" for k, v in video_data.items()}
+            else:
+                redis_data["video_data"] = None
+        except Exception as e:
+            redis_data["video_data_error"] = str(e)
+        
+        # Check analysis data  
+        try:
+            analysis_data = await redis_service.get_cached_analysis(video_id)
+            redis_data["analysis_data"] = "Found" if analysis_data else "Not found"
+        except Exception as e:
+            redis_data["analysis_data_error"] = str(e)
+        
+        return {
+            "video_id": video_id,
+            "redis_data": redis_data,
+            "memory_storage": video_id in video_storage
+        }
+    except Exception as e:
+        return {"error": str(e), "video_id": video_id}
+
 @app.options("/upload")
 async def upload_options():
     """Handle CORS preflight for upload endpoint"""
