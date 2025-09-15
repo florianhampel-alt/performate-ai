@@ -153,37 +153,7 @@ export default function VideoOverlay({ videoUrl, analysisId, className = "", ana
     }
   }, [analysisId]);
 
-  // Video event handlers
-  const handleTimeUpdate = useCallback(() => {
-    if (videoRef.current) {
-      setCurrentTime(videoRef.current.currentTime);
-    }
-  }, []);
-
-  const handleLoadedMetadata = useCallback(() => {
-    if (videoRef.current) {
-      setDuration(videoRef.current.duration);
-      
-      // Trigger initial overlay render after video metadata is loaded
-      if (overlayData?.has_overlay) {
-        setTimeout(() => drawOverlay(), 200);
-      }
-    }
-  }, [overlayData, drawOverlay]);
-
-  const handlePlay = useCallback(() => {
-    setIsPlaying(true);
-    // Force overlay redraw when video starts (mobile fix)
-    if (overlayData?.has_overlay) {
-      setTimeout(() => drawOverlay(), 50);
-    }
-  }, [overlayData, drawOverlay]);
-  
-  const handlePause = useCallback(() => {
-    setIsPlaying(false);
-  }, []);
-
-  // Draw overlay on canvas
+  // Draw overlay on canvas (declared early to be used in other callbacks)
   const drawOverlay = useCallback(() => {
     const canvas = canvasRef.current;
     const video = videoRef.current;
@@ -373,6 +343,36 @@ export default function VideoOverlay({ videoUrl, analysisId, className = "", ana
     
     ctx.globalAlpha = 1;
   };
+
+  // Video event handlers (declared after drawOverlay)
+  const handleTimeUpdate = useCallback(() => {
+    if (videoRef.current) {
+      setCurrentTime(videoRef.current.currentTime);
+    }
+  }, []);
+
+  const handleLoadedMetadata = useCallback(() => {
+    if (videoRef.current) {
+      setDuration(videoRef.current.duration);
+      
+      // Trigger initial overlay render after video metadata is loaded
+      if (overlayData?.has_overlay) {
+        setTimeout(() => drawOverlay(), 200);
+      }
+    }
+  }, [overlayData, drawOverlay]);
+
+  const handlePlay = useCallback(() => {
+    setIsPlaying(true);
+    // Force overlay redraw when video starts (mobile fix)
+    if (overlayData?.has_overlay) {
+      setTimeout(() => drawOverlay(), 50);
+    }
+  }, [overlayData, drawOverlay]);
+  
+  const handlePause = useCallback(() => {
+    setIsPlaying(false);
+  }, []);
 
   // Update overlay on time change
   useEffect(() => {
