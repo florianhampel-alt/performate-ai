@@ -344,6 +344,17 @@ async def upload_video(file: UploadFile = File(...)):
                         logger.info(f"Video metadata cached in Redis for {analysis_id}")
                     except Exception as redis_error:
                         logger.warning(f"Failed to cache video metadata in Redis: {redis_error}")
+                        
+                    # 3. Generate analysis for S3 uploaded video
+                    sport_detected = detect_sport_from_filename(file.filename)
+                    
+                    # 4. Create analysis based on detected sport
+                    if sport_detected in ['climbing', 'bouldering']:
+                        analysis_result = create_intelligent_climbing_analysis(file.filename, actual_size, "")
+                    else:
+                        analysis_result = create_mock_analysis(file.filename, sport_detected, actual_size)
+                    
+                    logger.info(f"Analysis generated for S3 video {analysis_id}: {sport_detected}")
                 else:
                     logger.warning("S3 upload failed, falling back to memory storage")
                     raise Exception("S3 upload failed")
@@ -373,15 +384,16 @@ async def upload_video(file: UploadFile = File(...)):
             logger.info(f"Video stored in memory (fallback): {analysis_id} ({actual_size / 1024 / 1024:.1f}MB)")
             logger.info(f"Current video_storage keys: {list(video_storage.keys())}")
             
-            # 3. Detektiere Sport-Typ
+            # 3. Generate analysis for memory stored video
             sport_detected = detect_sport_from_filename(file.filename)
             
-            # 4. Führe erweiterte Klettern-Analyse durch (intelligente Simulation)
+            # 4. Create analysis based on detected sport
             if sport_detected in ['climbing', 'bouldering']:
-                analysis_result = create_intelligent_climbing_analysis(file.filename, file_size, "")
+                analysis_result = create_intelligent_climbing_analysis(file.filename, actual_size, "")
             else:
-                # Fallback für andere Sports
-                analysis_result = create_mock_analysis(file.filename, sport_detected, file_size)
+                analysis_result = create_mock_analysis(file.filename, sport_detected, actual_size)
+            
+            logger.info(f"Analysis generated for memory video {analysis_id}: {sport_detected}")
                 
         except Exception as e:
             # Clean up on error
