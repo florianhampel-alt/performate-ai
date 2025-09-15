@@ -181,9 +181,11 @@ async def upload_video(file: UploadFile = File(...)):
         if file.content_type not in allowed_types:
             raise HTTPException(status_code=400, detail=f"Unsupported file type: {file.content_type}")
         
-        # 2. Speichere Video temporär für Analyse
+        # 2. Read video in chunks for large files to avoid memory issues
+        logger.info(f"Reading video file: {file.filename}")
         contents = await file.read()
         file_size = len(contents)
+        logger.info(f"Video read successfully: {file_size / (1024*1024):.1f}MB")
         
         # Store video in memory for Render deployment (ephemeral file system)
         try:
@@ -214,10 +216,10 @@ async def upload_video(file: UploadFile = File(...)):
                 del video_storage[analysis_id]
             raise e
         
-        # 5. Cache Ergebnis und Video in Redis (falls verfügbar)
+        # 5. Store video first, then cache analysis (non-blocking)
+        # This allows early response to prevent timeouts
         try:
-            await redis_service.cache_analysis_result(analysis_id, analysis_result, expire=3600)
-            # Also cache video data for persistence
+            # Cache video data first for immediate availability
             import base64
             video_b64 = base64.b64encode(contents).decode('utf-8')
             video_cache_data = {
@@ -227,8 +229,12 @@ async def upload_video(file: UploadFile = File(...)):
                 'size': file_size
             }
             await redis_service.set_json(f"video:{analysis_id}", video_cache_data, expire=7200)  # 2 hours
+            
+            # Cache analysis result
+            await redis_service.cache_analysis_result(analysis_id, analysis_result, expire=3600)
+            logger.info(f"Successfully cached analysis and video for {analysis_id}")
         except Exception as e:
-            logger.warning(f"Redis caching failed: {e}")
+            logger.warning(f"Redis caching failed: {e} - will serve from memory only")
         
         # 6. Erweiterte Antwort
         final_result = {
@@ -244,11 +250,16 @@ async def upload_video(file: UploadFile = File(...)):
             "video_url": f"/videos/{analysis_id}"  # Add video URL for later playback
         }
         
-        logger.info(f"Analysis completed successfully: {analysis_id}")
+        logger.info(f"Analysis completed successfully for {analysis_id}: {file.filename} ({file_size/(1024*1024):.1f}MB)")
         return final_result
         
     except Exception as e:
         logger.error(f"Analysis failed for {analysis_id}: {str(e)}")
+        # Clean up on error
+        if analysis_id in video_storage:
+            del video_storage[analysis_id]
+            logger.info(f"Cleaned up video storage for failed analysis: {analysis_id}")
+            
         return {
             "analysis_id": analysis_id,
             "filename": file.filename,

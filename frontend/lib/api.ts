@@ -65,10 +65,20 @@ export async function uploadVideo(
   formData.append('file', file)
   formData.append('sport_type', sportType)
 
+  // Create timeout controller for large files
+  const controller = new AbortController()
+  const timeoutMs = Math.max(60000, (file.size / (1024 * 1024)) * 5000) // 5 seconds per MB, minimum 60s
+  const timeoutId = setTimeout(() => {
+    controller.abort()
+  }, timeoutMs)
+  
+  console.log(`Upload timeout set to: ${timeoutMs}ms (${timeoutMs/1000}s)`)
+
   try {
     const response = await fetch(`${API_BASE_URL}/upload`, {
       method: 'POST',
       body: formData,
+      signal: controller.signal,
       // Remove Content-Type header to let browser set it with boundary for FormData
     })
 
@@ -92,12 +102,23 @@ export async function uploadVideo(
       )
     }
 
+    clearTimeout(timeoutId) // Clear timeout on success
     const result = await response.json()
     console.log('Upload successful:', result)
     return result
     
   } catch (error) {
+    clearTimeout(timeoutId) // Clear timeout on error
     console.error('Upload request failed:', error)
+    
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new ApiError(
+        `Upload timeout: File too large or connection too slow. Try a smaller video or better connection.`,
+        408,
+        { timeout: true }
+      )
+    }
+    
     if (error instanceof ApiError) {
       throw error
     }
