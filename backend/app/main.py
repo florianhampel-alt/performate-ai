@@ -343,11 +343,17 @@ async def upload_video(file: UploadFile = File(...)):
         elif file_size > 50 * 1024 * 1024:  # Warning for large files
             logger.warning(f"Large file upload: {file_size/(1024*1024):.1f}MB - may hit memory limits")
             
-        # Read video content with progress logging
-        logger.info(f"Reading video content...")
-        contents = await file.read()
-        actual_size = len(contents)
-        logger.info(f"Video read successfully: {actual_size / (1024*1024):.1f}MB (expected: {file_size / (1024*1024):.1f}MB)")
+        # For large files, use streaming upload to avoid memory issues
+        if file_size > 50 * 1024 * 1024:  # Stream files > 50MB
+            logger.info(f"Large file detected ({file_size/(1024*1024):.1f}MB) - using streaming upload")
+            actual_size = file_size
+            contents = None  # Don't load into memory
+        else:
+            # Small files can be loaded into memory
+            logger.info(f"Reading small video content...")
+            contents = await file.read()
+            actual_size = len(contents)
+            logger.info(f"Video read successfully: {actual_size / (1024*1024):.1f}MB")
         
         # Upload video to S3 (preferred) or store in memory (fallback)
         s3_key = None
@@ -359,12 +365,24 @@ async def upload_video(file: UploadFile = File(...)):
                 upload_start = time.time()
                 logger.info(f"Starting S3 upload: {actual_size/(1024*1024):.1f}MB")
                 
-                s3_key = await s3_service.upload_video(
-                    video_content=contents,
-                    filename=file.filename,
-                    analysis_id=analysis_id,
-                    content_type=file.content_type
-                )
+                # Use streaming upload for large files
+                if contents is None:  # Large file - stream directly
+                    # Reset file pointer for streaming
+                    await file.seek(0)
+                    s3_key = await s3_service.upload_video_stream(
+                        video_stream=file.file,  # Direct file stream
+                        filename=file.filename,
+                        analysis_id=analysis_id,
+                        content_type=file.content_type,
+                        file_size=actual_size
+                    )
+                else:  # Small file - use memory upload
+                    s3_key = await s3_service.upload_video(
+                        video_content=contents,
+                        filename=file.filename,
+                        analysis_id=analysis_id,
+                        content_type=file.content_type
+                    )
                 
                 upload_time = time.time() - upload_start
                 speed_mbps = (actual_size / (1024 * 1024)) / upload_time if upload_time > 0 else 0
@@ -428,6 +446,14 @@ async def upload_video(file: UploadFile = File(...)):
                     status_code=413, 
                     detail="File too large for memory storage and S3 unavailable. Configure S3 for large files."
                 )
+            
+            # If we don't have contents (streaming case), read them now for fallback
+            if contents is None:
+                logger.info("Reading file contents for memory fallback...")
+                await file.seek(0)  # Reset file pointer
+                contents = await file.read()
+                actual_size = len(contents)
+                logger.info(f"File read for fallback: {actual_size/(1024*1024):.1f}MB")
                 
             video_storage[analysis_id] = {
                 'content': contents,
@@ -454,7 +480,7 @@ async def upload_video(file: UploadFile = File(...)):
         # 5. Store video and cache analysis (skip Redis for large files to save memory)
         try:
             # Only cache small videos in Redis to prevent memory overflow  
-            if file_size < 10 * 1024 * 1024:  # Only cache videos < 10MB in Redis
+            if file_size < 10 * 1024 * 1024 and contents is not None:  # Only cache videos < 10MB in Redis
                 import base64
                 video_b64 = base64.b64encode(contents).decode('utf-8')
                 video_cache_data = {
@@ -466,7 +492,7 @@ async def upload_video(file: UploadFile = File(...)):
                 await redis_service.set_json(f"video:{analysis_id}", video_cache_data, expire=7200)
                 logger.info(f"Cached small video ({file_size/(1024*1024):.1f}MB) in Redis")
             else:
-                logger.info(f"Skipping Redis cache for large video ({file_size/(1024*1024):.1f}MB) - using memory only")
+                logger.info(f"Skipping Redis cache for large video ({file_size/(1024*1024):.1f}MB) - using S3 metadata only")
             
             # Always cache analysis result (small)
             try:

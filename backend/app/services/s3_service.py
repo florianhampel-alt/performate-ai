@@ -49,6 +49,68 @@ class S3Service:
             logger.error(f"Failed to upload file to S3: {str(e)}")
             return False
 
+    async def upload_video_stream(
+        self, 
+        video_stream, 
+        filename: str, 
+        analysis_id: str,
+        content_type: str = "video/mp4",
+        file_size: int = 0
+    ) -> Optional[str]:
+        """
+        Upload video via streaming to S3 without loading into memory
+        
+        Args:
+            video_stream: Streaming video data (FastAPI UploadFile)
+            filename: Original filename
+            analysis_id: Unique analysis ID
+            content_type: MIME type
+            file_size: File size for metadata
+            
+        Returns:
+            S3 key if successful, None if failed
+        """
+        if not self.enabled:
+            logger.warning("S3 not configured - cannot upload video")
+            return None
+            
+        try:
+            # Generate S3 key
+            timestamp = datetime.now().strftime("%Y/%m/%d")
+            file_extension = filename.split('.')[-1] if '.' in filename else 'mp4'
+            s3_key = f"videos/{timestamp}/{analysis_id}.{file_extension}"
+            
+            # Upload to S3 using multipart upload for large files
+            session = aioboto3.Session(
+                aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+                aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+                region_name=self.region
+            )
+            
+            async with session.client('s3') as s3:
+                # Use streaming upload - no memory loading
+                await s3.upload_fileobj(
+                    video_stream,
+                    self.bucket,
+                    s3_key,
+                    ExtraArgs={
+                        'ContentType': content_type,
+                        'Metadata': {
+                            'analysis_id': analysis_id,
+                            'original_filename': filename,
+                            'upload_timestamp': datetime.now().isoformat(),
+                            'file_size': str(file_size)
+                        }
+                    }
+                )
+                
+            logger.info(f"Successfully streamed video to S3: {s3_key} ({file_size/(1024*1024):.1f}MB)")
+            return s3_key
+            
+        except Exception as e:
+            logger.error(f"Failed to stream video to S3: {str(e)}")
+            return None
+
     async def upload_video(
         self, 
         video_content: bytes, 
