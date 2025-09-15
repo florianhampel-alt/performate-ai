@@ -188,11 +188,20 @@ async def upload_video(file: UploadFile = File(...)):
         if file.content_type not in allowed_types:
             raise HTTPException(status_code=400, detail=f"Unsupported file type: {file.content_type}")
         
-        # 2. Read video in chunks for large files to avoid memory issues
-        logger.info(f"Reading video file: {file.filename}")
+        # 2. Check file size before reading to prevent memory issues
+        file_size = file.size or 0
+        logger.info(f"Processing video file: {file.filename} ({file_size / (1024*1024):.1f}MB)")
+        
+        # Prevent memory overflow for very large files on Render's free tier
+        if file_size > 50 * 1024 * 1024:  # 50MB limit for Render
+            raise HTTPException(
+                status_code=413, 
+                detail="File too large for processing. Please use a video under 50MB or compress your video."
+            )
+            
+        # Read video content
         contents = await file.read()
-        file_size = len(contents)
-        logger.info(f"Video read successfully: {file_size / (1024*1024):.1f}MB")
+        logger.info(f"Video read successfully: {len(contents) / (1024*1024):.1f}MB")
         
         # Store video in memory for Render deployment (ephemeral file system)
         try:
@@ -223,23 +232,26 @@ async def upload_video(file: UploadFile = File(...)):
                 del video_storage[analysis_id]
             raise e
         
-        # 5. Store video first, then cache analysis (non-blocking)
-        # This allows early response to prevent timeouts
+        # 5. Store video and cache analysis (skip Redis for large files to save memory)
         try:
-            # Cache video data first for immediate availability
-            import base64
-            video_b64 = base64.b64encode(contents).decode('utf-8')
-            video_cache_data = {
-                'video_data': video_b64,
-                'filename': file.filename,
-                'content_type': file.content_type,
-                'size': file_size
-            }
-            await redis_service.set_json(f"video:{analysis_id}", video_cache_data, expire=7200)  # 2 hours
+            # Only cache small videos in Redis to prevent memory overflow  
+            if file_size < 10 * 1024 * 1024:  # Only cache videos < 10MB in Redis
+                import base64
+                video_b64 = base64.b64encode(contents).decode('utf-8')
+                video_cache_data = {
+                    'video_data': video_b64,
+                    'filename': file.filename,
+                    'content_type': file.content_type,
+                    'size': file_size
+                }
+                await redis_service.set_json(f"video:{analysis_id}", video_cache_data, expire=7200)
+                logger.info(f"Cached small video ({file_size/(1024*1024):.1f}MB) in Redis")
+            else:
+                logger.info(f"Skipping Redis cache for large video ({file_size/(1024*1024):.1f}MB) - using memory only")
             
-            # Cache analysis result
+            # Always cache analysis result (small)
             await redis_service.cache_analysis_result(analysis_id, analysis_result, expire=3600)
-            logger.info(f"Successfully cached analysis and video for {analysis_id}")
+            logger.info(f"Successfully cached analysis for {analysis_id}")
         except Exception as e:
             logger.warning(f"Redis caching failed: {e} - will serve from memory only")
         
