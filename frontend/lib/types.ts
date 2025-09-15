@@ -73,7 +73,7 @@ export interface AnalysisResult {
 export interface VideoUploadProps {
   onUploadComplete?: (result: AnalysisResult) => void
   allowedSports?: SportType[]
-  maxFileSize?: number
+  maxFileSize?: number  // Default 120MB (120 * 1024 * 1024)
 }
 
 export interface AnalysisResultsProps {

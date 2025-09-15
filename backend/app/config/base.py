@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     OPENAI_MODEL: str = "gpt-4-vision-preview"
     
     # File upload settings
-    MAX_FILE_SIZE: int = 100 * 1024 * 1024  # 100MB
+    MAX_FILE_SIZE: int = 120 * 1024 * 1024  # 120MB
     ALLOWED_EXTENSIONS_STR: str = ".mp4,.avi,.mov,.mkv,.wmv"
     
     # Analysis settings
