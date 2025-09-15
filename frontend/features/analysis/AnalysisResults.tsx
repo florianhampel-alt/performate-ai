@@ -28,22 +28,41 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
         
         // Fetch video URL from backend
         if (results.video_url) {
+          console.log('Analysis has video_url:', results.video_url)
           try {
-            const videoResponse = await fetch(`https://performate-ai.onrender.com${results.video_url}`)
+            const videoEndpoint = `https://performate-ai.onrender.com${results.video_url}`
+            console.log('Fetching video from:', videoEndpoint)
+            
+            const videoResponse = await fetch(videoEndpoint)
+            console.log('Video response status:', videoResponse.status)
+            
             if (videoResponse.ok) {
               const videoData = await videoResponse.json()
+              console.log('Video data received:', videoData)
+              
               if (videoData.video_url) {
                 setVideoUrl(videoData.video_url)
-                console.log('Video URL fetched:', videoData.video_url)
+                console.log('✅ Video URL set successfully:', videoData.video_url)
+                console.log('Video type:', videoData.type)
+                if (videoData.debug) {
+                  console.log('Debug info:', videoData.debug)
+                }
+              } else {
+                console.error('❌ No video_url in response:', videoData)
               }
             } else {
+              console.error('❌ Video response not OK:', videoResponse.status, videoResponse.statusText)
+              const errorText = await videoResponse.text()
+              console.error('Error response:', errorText)
               // Fallback: use the original URL as direct link
               setVideoUrl(`https://performate-ai.onrender.com${results.video_url}`)
             }
           } catch (videoErr) {
-            console.error('Error fetching video URL:', videoErr)
+            console.error('❌ Error fetching video URL:', videoErr)
             setVideoUrl(`https://performate-ai.onrender.com${results.video_url}`)
           }
+        } else {
+          console.warn('⚠️ No video_url found in analysis results')
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load analysis')

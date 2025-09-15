@@ -94,14 +94,40 @@ async def serve_video(video_id: str):
                 # Return presigned URL directly for frontend to handle
                 # This avoids redirect issues with video players
                 from fastapi.responses import JSONResponse
-                return JSONResponse({
-                    "video_url": presigned_url,
-                    "type": "s3_presigned",
-                    "expires_in": 3600,
-                    "content_type": video_info.get('content_type', 'video/mp4')
-                })
+                return JSONResponse(
+                    {
+                        "video_url": presigned_url,
+                        "type": "s3_presigned",
+                        "expires_in": 3600,
+                        "content_type": video_info.get('content_type', 'video/mp4'),
+                        "s3_key": video_info['s3_key'],
+                        "debug": {
+                            "bucket": "performate-ai-uploads-dev01",
+                            "region": "eu-north-1",
+                            "video_id": video_id,
+                            "presigned_url_length": len(presigned_url)
+                        }
+                    },
+                    headers={
+                        "Access-Control-Allow-Origin": "*",
+                        "Access-Control-Allow-Methods": "GET, OPTIONS",
+                        "Access-Control-Allow-Headers": "*"
+                    }
+                )
             else:
                 logger.error(f"Failed to generate presigned URL for {video_id}")
+                logger.error(f"S3 key: {video_info.get('s3_key')}, S3 enabled: {s3_service.enabled}")
+                
+                # Try direct S3 URL as fallback
+                if 's3_key' in video_info:
+                    direct_url = f"https://performate-ai-uploads-dev01.s3.eu-north-1.amazonaws.com/{video_info['s3_key']}"
+                    logger.info(f"Trying direct S3 URL fallback: {direct_url[:100]}...")
+                    return JSONResponse({
+                        "video_url": direct_url,
+                        "type": "s3_direct",
+                        "warning": "Using direct S3 URL - presigned URL generation failed"
+                    })
+                
                 raise HTTPException(status_code=500, detail="Failed to access video from storage")
         
         # Handle memory stored videos (fallback)
