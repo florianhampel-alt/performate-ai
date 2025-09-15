@@ -602,7 +602,7 @@ async def upload_video(file: UploadFile = File(...)):
             logger.error(f"S3 storage failed ({str(s3_error)}), using memory storage")
             logger.error(f"S3 error details: {type(s3_error).__name__}: {str(s3_error)}")
             
-            if actual_size > 100 * 1024 * 1024:  # 100MB limit for memory
+            if actual_size > 150 * 1024 * 1024:  # 150MB limit for memory (temporary until S3 fixed)
                 logger.error(f"File too large for memory fallback: {actual_size/(1024*1024):.1f}MB")
                 raise HTTPException(
                     status_code=413, 
