@@ -455,12 +455,29 @@ async def get_analysis_results(analysis_id: str):
         else:
             # For demo purposes - generate a new analysis on demand when Redis is unavailable
             logger.info(f"Analysis {analysis_id} not in cache, generating new analysis")
-            # Create a fallback analysis directly
-            analysis_result = create_intelligent_climbing_analysis(
+            
+            # Use video analysis service to generate overlay data for climbing videos
+            video_analysis = await video_analysis_service.analyze_climbing_video(
+                video_path=f"/videos/{analysis_id}",
+                analysis_id=analysis_id,
+                sport_type="climbing"
+            )
+            
+            # Create enhanced fallback analysis with overlay data
+            base_analysis = create_intelligent_climbing_analysis(
                 filename=f"climbing-video-{analysis_id[:6]}.mp4",
                 file_size=15000000,  # 15MB mock size
                 video_path=""
             )
+            
+            analysis_result = {
+                **base_analysis,
+                "route_analysis": video_analysis.get("route_analysis", {}),
+                "overlay_data": video_analysis.get("overlay_data", {}),
+                "has_route_overlay": video_analysis.get("overlay_data", {}).get("has_overlay", False),
+                "enhanced_insights": video_analysis.get("route_analysis", {}).get("key_insights", []),
+                "difficulty_estimated": video_analysis.get("route_analysis", {}).get("difficulty_estimated", "Unknown")
+            }
         
         # Generate overlay data if it exists in analysis result
         overlay_data = analysis_result.get('overlay_data', {"has_overlay": False})
