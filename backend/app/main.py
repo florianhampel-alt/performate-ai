@@ -91,12 +91,15 @@ async def serve_video(video_id: str):
             if presigned_url:
                 logger.info(f"Generated presigned URL for {video_id}: {presigned_url[:100]}...")
                 
-                # Option 1: Direct redirect (current method)
-                from fastapi.responses import RedirectResponse
-                return RedirectResponse(url=presigned_url, status_code=302)
-                
-                # Option 2: Return URL as JSON (uncomment if redirect doesn't work)
-                # return {"video_url": presigned_url, "type": "s3_presigned"}
+                # Return presigned URL directly for frontend to handle
+                # This avoids redirect issues with video players
+                from fastapi.responses import JSONResponse
+                return JSONResponse({
+                    "video_url": presigned_url,
+                    "type": "s3_presigned",
+                    "expires_in": 3600,
+                    "content_type": video_info.get('content_type', 'video/mp4')
+                })
             else:
                 logger.error(f"Failed to generate presigned URL for {video_id}")
                 raise HTTPException(status_code=500, detail="Failed to access video from storage")

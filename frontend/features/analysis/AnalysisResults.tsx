@@ -17,6 +17,7 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [videoUrl, setVideoUrl] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchResults = async () => {
@@ -24,6 +25,26 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
         setLoading(true)
         const results = await getAnalysisResults(analysisId)
         setAnalysis(results)
+        
+        // Fetch video URL from backend
+        if (results.video_url) {
+          try {
+            const videoResponse = await fetch(`https://performate-ai.onrender.com${results.video_url}`)
+            if (videoResponse.ok) {
+              const videoData = await videoResponse.json()
+              if (videoData.video_url) {
+                setVideoUrl(videoData.video_url)
+                console.log('Video URL fetched:', videoData.video_url)
+              }
+            } else {
+              // Fallback: use the original URL as direct link
+              setVideoUrl(`https://performate-ai.onrender.com${results.video_url}`)
+            }
+          } catch (videoErr) {
+            console.error('Error fetching video URL:', videoErr)
+            setVideoUrl(`https://performate-ai.onrender.com${results.video_url}`)
+          }
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load analysis')
       } finally {
@@ -89,7 +110,7 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
           <div className="relative">
             <div className="aspect-video bg-gray-900 rounded-lg overflow-hidden relative">
               {/* Real HTML5 Video Player */}
-              {analysis.video_url ? (
+              {videoUrl ? (
                 <video 
                   className="w-full h-full object-cover"
                   controls
@@ -97,12 +118,12 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
                   poster="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1920 1080'%3E%3Crect width='1920' height='1080' fill='%23111827'/%3E%3C/svg%3E"
                 >
                   <source 
-                    src={`https://performate-ai.onrender.com${analysis.video_url}`} 
+                    src={videoUrl} 
                     type="video/mp4" 
                   />
                   <p className="text-white text-center p-4">
                     Ihr Browser unterstützt keine HTML5-Videos. 
-                    <a href={`https://performate-ai.onrender.com${analysis.video_url}`} className="text-blue-400 underline">
+                    <a href={videoUrl} className="text-blue-400 underline">
                       Direkter Download
                     </a>
                   </p>
@@ -115,8 +136,12 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
                         <path d="M8 5v14l11-7z"/>
                       </svg>
                     </div>
-                    <p className="text-lg font-medium">Video nicht verfügbar</p>
-                    <p className="text-sm opacity-75">Das Video konnte nicht geladen werden</p>
+                    <p className="text-lg font-medium">
+                      {analysis.video_url ? 'Video wird geladen...' : 'Video nicht verfügbar'}
+                    </p>
+                    <p className="text-sm opacity-75">
+                      {analysis.video_url ? 'S3 URL wird abgerufen...' : 'Das Video konnte nicht geladen werden'}
+                    </p>
                   </div>
                 </div>
               )}
