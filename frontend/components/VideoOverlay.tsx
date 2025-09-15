@@ -165,14 +165,20 @@ export default function VideoOverlay({ videoUrl, analysisId, className = "" }: V
     const visiblePoints = points.filter(point => point.time <= time + 1); // 1s preview
     
     if (visiblePoints.length >= 2) {
-      ctx.beginPath();
-      ctx.moveTo(visiblePoints[0].x * scaleX, visiblePoints[0].y * scaleY);
-      
-      for (let i = 1; i < visiblePoints.length; i++) {
-        ctx.lineTo(visiblePoints[i].x * scaleX, visiblePoints[i].y * scaleY);
+      const firstPoint = visiblePoints[0];
+      if (firstPoint) {
+        ctx.beginPath();
+        ctx.moveTo(firstPoint.x * scaleX, firstPoint.y * scaleY);
+        
+        for (let i = 1; i < visiblePoints.length; i++) {
+          const point = visiblePoints[i];
+          if (point) {
+            ctx.lineTo(point.x * scaleX, point.y * scaleY);
+          }
+        }
+        
+        ctx.stroke();
       }
-      
-      ctx.stroke();
     }
     
     ctx.globalAlpha = 1;
