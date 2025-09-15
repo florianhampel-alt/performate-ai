@@ -230,6 +230,155 @@ async def serve_video(video_id: str):
         raise HTTPException(status_code=500, detail=f"Error serving video: {str(e)}")
 
 
+@app.post("/upload/init")
+async def init_upload(request: dict):
+    """Initialize upload and return presigned S3 URL for direct client upload"""
+    try:
+        # Extract request data
+        filename = request.get('filename', 'video.mp4')
+        content_type = request.get('content_type', 'video/mp4')
+        file_size = request.get('file_size', 0)
+        
+        # Generate analysis ID
+        analysis_id = str(uuid.uuid4())
+        
+        # Validate file type
+        allowed_types = ["video/mp4", "video/quicktime", "video/avi", "video/x-msvideo"]
+        if content_type not in allowed_types:
+            raise HTTPException(status_code=400, detail=f"Unsupported file type: {content_type}")
+        
+        # Validate file size
+        if file_size > 120 * 1024 * 1024:  # 120MB
+            raise HTTPException(status_code=413, detail="File too large. Maximum size is 120MB.")
+        
+        # Generate S3 key
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y/%m/%d")
+        file_extension = filename.split('.')[-1] if '.' in filename else 'mp4'
+        s3_key = f"videos/{timestamp}/{analysis_id}.{file_extension}"
+        
+        # Generate presigned upload URL
+        presigned_data = await s3_service.generate_presigned_upload_url(
+            key=s3_key,
+            content_type=content_type,
+            expires_in=1800  # 30 minutes
+        )
+        
+        if not presigned_data:
+            raise HTTPException(status_code=500, detail="Failed to generate upload URL")
+        
+        # Store pending upload metadata
+        video_storage[analysis_id] = {
+            's3_key': s3_key,
+            'filename': filename,
+            'content_type': content_type,
+            'size': file_size,
+            'status': 'pending_upload',
+            'storage_type': 's3',
+            'timestamp': uuid.uuid4().hex[:8]
+        }
+        
+        logger.info(f"Upload initialized for {analysis_id}: {filename} ({file_size/(1024*1024):.1f}MB)")
+        
+        return {
+            "analysis_id": analysis_id,
+            "upload_url": presigned_data['url'],
+            "upload_fields": presigned_data['fields'],
+            "s3_key": s3_key,
+            "expires_in": 1800,
+            "max_file_size": 120 * 1024 * 1024
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to initialize upload: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to initialize upload: {str(e)}")
+
+
+@app.post("/upload/complete")
+async def complete_upload(request: dict):
+    """Complete upload after client has uploaded to S3 - start analysis"""
+    try:
+        analysis_id = request.get('analysis_id')
+        if not analysis_id or analysis_id not in video_storage:
+            raise HTTPException(status_code=404, detail="Upload session not found")
+        
+        video_info = video_storage[analysis_id]
+        
+        # Update status to processing
+        video_info['status'] = 'processing'
+        logger.info(f"Starting analysis for {analysis_id}: {video_info['filename']}")
+        
+        # Store metadata in Redis for persistence
+        try:
+            video_metadata = {
+                's3_key': video_info['s3_key'],
+                'filename': video_info['filename'],
+                'content_type': video_info['content_type'],
+                'size': video_info['size'],
+                'storage_type': 's3',
+                'status': 'processing'
+            }
+            await redis_service.set_json(f"video_meta:{analysis_id}", video_metadata, expire=7200)
+            logger.info(f"Video metadata cached in Redis for {analysis_id}")
+        except Exception as redis_error:
+            logger.warning(f"Failed to cache video metadata in Redis: {redis_error}")
+        
+        # Generate analysis (sport detection from filename)
+        sport_detected = detect_sport_from_filename(video_info['filename'])
+        
+        if sport_detected in ['climbing', 'bouldering']:
+            analysis_result = create_intelligent_climbing_analysis(
+                video_info['filename'], 
+                video_info['size'], 
+                ""
+            )
+        else:
+            analysis_result = create_mock_analysis(
+                video_info['filename'], 
+                sport_detected, 
+                video_info['size']
+            )
+        
+        # Cache analysis result
+        try:
+            await redis_service.cache_analysis_result(analysis_id, analysis_result, expire=3600)
+            logger.info(f"Successfully cached analysis for {analysis_id}")
+        except Exception as analysis_cache_error:
+            logger.warning(f"Analysis caching failed: {analysis_cache_error}")
+        
+        # Update status to completed
+        video_info['status'] = 'completed'
+        video_info['analysis'] = analysis_result
+        
+        logger.info(f"Analysis completed for {analysis_id}: {sport_detected}")
+        
+        return {
+            "analysis_id": analysis_id,
+            "status": "completed",
+            "sport_detected": sport_detected,
+            "video_url": f"/videos/{analysis_id}"
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to complete upload: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to complete upload: {str(e)}")
+
+
+@app.get("/upload/status/{analysis_id}")
+async def get_upload_status(analysis_id: str):
+    """Get upload and analysis status"""
+    if analysis_id in video_storage:
+        video_info = video_storage[analysis_id]
+        return {
+            "analysis_id": analysis_id,
+            "status": video_info.get('status', 'unknown'),
+            "filename": video_info.get('filename'),
+            "size_mb": video_info.get('size', 0) / (1024 * 1024)
+        }
+    else:
+        raise HTTPException(status_code=404, detail="Upload session not found")
+
+
 @app.get("/analysis/{analysis_id}")
 async def get_analysis_results(analysis_id: str):
     """Get analysis results by analysis ID"""

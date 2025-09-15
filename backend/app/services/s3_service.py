@@ -191,6 +191,38 @@ class S3Service:
             logger.error(f"Failed to upload video to S3: {str(e)}")
             return None
 
+    async def generate_presigned_upload_url(
+        self, 
+        key: str, 
+        content_type: str = "video/mp4",
+        expires_in: int = 1800  # 30 minutes
+    ) -> Optional[dict]:
+        """Generate presigned URL for direct client upload to S3"""
+        if not self.enabled:
+            logger.warning("S3 not configured - cannot generate presigned upload URL")
+            return None
+            
+        try:
+            # Generate presigned POST for secure upload with constraints
+            response = self.client.generate_presigned_post(
+                Bucket=self.bucket,
+                Key=key,
+                Fields={
+                    'Content-Type': content_type
+                },
+                Conditions=[
+                    {'Content-Type': content_type},
+                    ['content-length-range', 1024, 120 * 1024 * 1024]  # 1KB - 120MB
+                ],
+                ExpiresIn=expires_in
+            )
+            
+            logger.info(f"Generated presigned upload URL for {key} (expires in {expires_in}s)")
+            return response
+        except Exception as e:
+            logger.error(f"Failed to generate presigned upload URL: {str(e)}")
+            return None
+
     async def generate_presigned_url(self, key: str, expires_in: int = 3600) -> Optional[str]:
         """Generate presigned URL for file access"""
         if not self.enabled:
