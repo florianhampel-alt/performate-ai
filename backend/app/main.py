@@ -72,7 +72,7 @@ async def serve_video(video_id: str):
     try:
         # Check if video exists in storage metadata
         if video_id not in video_storage:
-            # Try Redis cache
+            # Try Redis cache for video data (Base64 encoded videos)
             try:
                 cached_video = await redis_service.get_json(f"video:{video_id}")
                 if cached_video and 'video_data' in cached_video:
@@ -86,9 +86,18 @@ async def serve_video(video_id: str):
                         'size': cached_video.get('size', len(video_content)),
                         'storage_type': 'memory'
                     }
-                    logger.info(f"Restored video {video_id} from Redis cache")
+                    logger.info(f"Restored video {video_id} from Redis video cache")
                 else:
-                    raise HTTPException(status_code=404, detail="Video not found")
+                    # Try Redis cache for video metadata (S3 keys)
+                    cached_metadata = await redis_service.get_json(f"video_meta:{video_id}")
+                    if cached_metadata:
+                        # Restore S3 metadata to memory
+                        video_storage[video_id] = cached_metadata
+                        logger.info(f"Restored video metadata {video_id} from Redis")
+                    else:
+                        raise HTTPException(status_code=404, detail="Video not found")
+            except HTTPException:
+                raise
             except Exception as cache_err:
                 logger.warning(f"Redis cache retrieval failed: {cache_err}")
                 raise HTTPException(status_code=404, detail="Video not found")
@@ -321,6 +330,20 @@ async def upload_video(file: UploadFile = File(...)):
                         'storage_type': 's3'
                     }
                     logger.info(f"Video metadata stored for analysis_id: {analysis_id}")
+                    
+                    # Also store metadata in Redis for persistence across server restarts
+                    try:
+                        video_metadata = {
+                            's3_key': s3_key,
+                            'filename': file.filename,
+                            'content_type': file.content_type,
+                            'size': actual_size,
+                            'storage_type': 's3'
+                        }
+                        await redis_service.set_json(f"video_meta:{analysis_id}", video_metadata, expire=7200)
+                        logger.info(f"Video metadata cached in Redis for {analysis_id}")
+                    except Exception as redis_error:
+                        logger.warning(f"Failed to cache video metadata in Redis: {redis_error}")
                 else:
                     logger.warning("S3 upload failed, falling back to memory storage")
                     raise Exception("S3 upload failed")
