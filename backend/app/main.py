@@ -80,6 +80,8 @@ async def serve_video(video_id: str):
         
         # Handle S3 stored videos
         if video_info.get('storage_type') == 's3' and 's3_key' in video_info:
+            logger.info(f"Serving S3 video {video_id} with key: {video_info['s3_key']}")
+            
             # Generate presigned URL for S3 video
             presigned_url = await s3_service.generate_presigned_url(
                 video_info['s3_key'], 
@@ -87,9 +89,14 @@ async def serve_video(video_id: str):
             )
             
             if presigned_url:
-                # Redirect to presigned URL instead of streaming through backend
+                logger.info(f"Generated presigned URL for {video_id}: {presigned_url[:100]}...")
+                
+                # Option 1: Direct redirect (current method)
                 from fastapi.responses import RedirectResponse
                 return RedirectResponse(url=presigned_url, status_code=302)
+                
+                # Option 2: Return URL as JSON (uncomment if redirect doesn't work)
+                # return {"video_url": presigned_url, "type": "s3_presigned"}
             else:
                 logger.error(f"Failed to generate presigned URL for {video_id}")
                 raise HTTPException(status_code=500, detail="Failed to access video from storage")
@@ -226,22 +233,31 @@ async def upload_video(file: UploadFile = File(...)):
         elif file_size > 50 * 1024 * 1024:  # Warning for large files
             logger.warning(f"Large file upload: {file_size/(1024*1024):.1f}MB - may hit memory limits")
             
-        # Read video content
+        # Read video content with progress logging
+        logger.info(f"Reading video content...")
         contents = await file.read()
-        logger.info(f"Video read successfully: {len(contents) / (1024*1024):.1f}MB")
+        actual_size = len(contents)
+        logger.info(f"Video read successfully: {actual_size / (1024*1024):.1f}MB (expected: {file_size / (1024*1024):.1f}MB)")
         
         # Upload video to S3 (preferred) or store in memory (fallback)
         s3_key = None
         try:
-            # Try uploading to S3 first
+            # Try uploading to S3 first (performance optimized)
             if s3_service.enabled:
-                logger.info(f"Uploading video to S3: {file_size/(1024*1024):.1f}MB")
+                import time
+                upload_start = time.time()
+                logger.info(f"Starting S3 upload: {actual_size/(1024*1024):.1f}MB")
+                
                 s3_key = await s3_service.upload_video(
                     video_content=contents,
                     filename=file.filename,
                     analysis_id=analysis_id,
                     content_type=file.content_type
                 )
+                
+                upload_time = time.time() - upload_start
+                speed_mbps = (actual_size / (1024 * 1024)) / upload_time if upload_time > 0 else 0
+                logger.info(f"S3 upload completed in {upload_time:.1f}s ({speed_mbps:.1f} MB/s)")
                 
                 if s3_key:
                     logger.info(f"Successfully uploaded video to S3: {s3_key}")
