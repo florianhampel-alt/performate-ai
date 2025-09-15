@@ -7,11 +7,14 @@ import os
 import tempfile
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
 from app.config.base import settings
 from app.services.redis_service import redis_service
 from app.utils.logger import get_logger
 # from app.analyzers.climbing_analyzer import ClimbingPoseAnalyzer  # Disabled for deployment
+
+# In-memory video storage for Render (ephemeral file system)
+video_storage = {}
 
 logger = get_logger(__name__)
 
@@ -40,20 +43,50 @@ async def health_check():
 
 @app.get("/videos/{video_id}")
 async def serve_video(video_id: str):
-    """Serve video file for playback"""
+    """Serve video file from in-memory storage or Redis cache"""
     try:
-        video_path = f"./uploads/{video_id}.mp4"
-        if not os.path.exists(video_path):
+        video_content = None
+        
+        # Try in-memory storage first
+        if video_id in video_storage:
+            video_content = video_storage[video_id]['content']
+            logger.info(f"Serving video {video_id} from memory")
+        else:
+            # Try Redis cache
+            try:
+                cached_video = await redis_service.get_json(f"video:{video_id}")
+                if cached_video and 'video_data' in cached_video:
+                    import base64
+                    video_content = base64.b64decode(cached_video['video_data'])
+                    # Restore to memory for faster access
+                    video_storage[video_id] = {
+                        'content': video_content,
+                        'filename': cached_video.get('filename', 'video.mp4'),
+                        'content_type': cached_video.get('content_type', 'video/mp4'),
+                        'size': cached_video.get('size', len(video_content))
+                    }
+                    logger.info(f"Restored video {video_id} from Redis cache")
+            except Exception as cache_err:
+                logger.warning(f"Redis cache retrieval failed: {cache_err}")
+        
+        if video_content is None:
             raise HTTPException(status_code=404, detail="Video not found")
             
-        return FileResponse(
-            video_path,
+        return Response(
+            content=video_content,
             media_type="video/mp4",
-            headers={"Accept-Ranges": "bytes"}
+            headers={
+                "Accept-Ranges": "bytes",
+                "Content-Length": str(len(video_content)),
+                "Cache-Control": "public, max-age=3600"
+            }
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error serving video {video_id}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error serving video: {str(e)}")
+
 
 @app.get("/analysis/{analysis_id}")
 async def get_analysis_results(analysis_id: str):
@@ -152,40 +185,48 @@ async def upload_video(file: UploadFile = File(...)):
         contents = await file.read()
         file_size = len(contents)
         
-        # Save video permanently for playback
-        video_storage_dir = "./uploads"
-        os.makedirs(video_storage_dir, exist_ok=True)
-        
-        # Create permanent file with analysis_id
-        video_filename = f"{analysis_id}.mp4"
-        video_path = os.path.join(video_storage_dir, video_filename)
-        
+        # Store video in memory for Render deployment (ephemeral file system)
         try:
-            # Write video to permanent storage
-            with open(video_path, 'wb') as video_file:
-                video_file.write(contents)
+            # Store video content in memory with metadata
+            video_storage[analysis_id] = {
+                'content': contents,
+                'filename': file.filename,
+                'content_type': file.content_type,
+                'size': file_size,
+                'timestamp': uuid.uuid4().hex[:8]
+            }
             
-            logger.info(f"Video saved permanently to: {video_path}")
+            logger.info(f"Video stored in memory for analysis_id: {analysis_id} ({file_size / 1024 / 1024:.1f}MB)")
             
             # 3. Detektiere Sport-Typ
             sport_detected = detect_sport_from_filename(file.filename)
             
             # 4. Führe erweiterte Klettern-Analyse durch (intelligente Simulation)
             if sport_detected in ['climbing', 'bouldering']:
-                analysis_result = create_intelligent_climbing_analysis(file.filename, file_size, video_path)
+                analysis_result = create_intelligent_climbing_analysis(file.filename, file_size, "")
             else:
                 # Fallback für andere Sports
                 analysis_result = create_mock_analysis(file.filename, sport_detected, file_size)
                 
         except Exception as e:
             # Clean up on error
-            if os.path.exists(video_path):
-                os.unlink(video_path)
+            if analysis_id in video_storage:
+                del video_storage[analysis_id]
             raise e
         
-        # 5. Cache Ergebnis in Redis (falls verfügbar)
+        # 5. Cache Ergebnis und Video in Redis (falls verfügbar)
         try:
             await redis_service.cache_analysis_result(analysis_id, analysis_result, expire=3600)
+            # Also cache video data for persistence
+            import base64
+            video_b64 = base64.b64encode(contents).decode('utf-8')
+            video_cache_data = {
+                'video_data': video_b64,
+                'filename': file.filename,
+                'content_type': file.content_type,
+                'size': file_size
+            }
+            await redis_service.set_json(f"video:{analysis_id}", video_cache_data, expire=7200)  # 2 hours
         except Exception as e:
             logger.warning(f"Redis caching failed: {e}")
         
