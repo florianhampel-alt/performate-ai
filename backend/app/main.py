@@ -16,6 +16,7 @@ from app.utils.logger import get_logger
 
 # In-memory video storage for fallback when S3 is not available
 video_storage = {}  # Used only when S3 is disabled
+last_upload_info = {"count": 0, "last_time": None, "last_id": None}  # Debug tracking
 
 logger = get_logger(__name__)
 
@@ -47,6 +48,7 @@ async def health_check():
 @app.get("/debug/videos")
 async def debug_videos():
     """Debug endpoint to list all stored videos"""
+    import datetime
     return {
         "video_storage_count": len(video_storage),
         "stored_video_ids": list(video_storage.keys()),
@@ -58,6 +60,12 @@ async def debug_videos():
                 "s3_key": info.get("s3_key", "N/A")
             }
             for video_id, info in video_storage.items()
+        },
+        "upload_tracking": {
+            "total_uploads": last_upload_info["count"],
+            "last_upload_time": last_upload_info["last_time"],
+            "last_upload_id": last_upload_info["last_id"],
+            "server_time": datetime.datetime.now().isoformat()
         }
     }
 
@@ -305,7 +313,14 @@ async def upload_video(file: UploadFile = File(...)):
     
     # Generiere Analysis ID
     analysis_id = str(uuid.uuid4())
-    logger.info(f"Starting video analysis {analysis_id} for file: {file.filename}")
+    
+    # Track upload for debugging
+    import datetime
+    last_upload_info["count"] += 1
+    last_upload_info["last_time"] = datetime.datetime.now().isoformat()
+    last_upload_info["last_id"] = analysis_id
+    
+    logger.info(f"Starting video analysis {analysis_id} for file: {file.filename} (Upload #{last_upload_info['count']})")
     
     try:
         # 1. Validiere Dateityp
