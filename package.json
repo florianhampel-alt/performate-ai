@@ -3,11 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "install": "cd frontend && npm install",
     "build": "cd frontend && npm run build",
     "start": "cd frontend && npm run start",
-    "dev": "cd frontend && npm run dev",
-    "postinstall": "cd frontend && npm install"
+    "dev": "cd frontend && npm run dev"
   },
   "dependencies": {
     "next": "^14.0.0",
