@@ -23,8 +23,8 @@ logger = get_logger(__name__)
 
 app = FastAPI(
     title="Performate AI API",
-    description="AI-powered sports performance analysis",
-    version="1.0.0"
+    description="AI-powered sports performance analysis with video overlays",
+    version="1.1.0"
 )
 
 # CORS middleware - Allow all origins to fix Vercel deployment CORS issues
