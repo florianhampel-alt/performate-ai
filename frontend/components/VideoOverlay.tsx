@@ -428,6 +428,37 @@ export default function VideoOverlay({ videoUrl, analysisId, className = "", ana
     // Return undefined when not in fullscreen (TypeScript requirement)
     return undefined;
   }, [isFullscreen, overlayData, drawOverlay]);
+  
+  // Handle native fullscreen changes
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const isCurrentlyFullscreen = !!(document.fullscreenElement || 
+        (document as any).webkitFullscreenElement || 
+        (document as any).mozFullScreenElement || 
+        (document as any).msFullscreenElement);
+      
+      setIsFullscreen(isCurrentlyFullscreen);
+      
+      // Force overlay redraw after fullscreen state change
+      setTimeout(() => {
+        if (overlayData?.has_overlay) {
+          drawOverlay();
+        }
+      }, 100);
+    };
+    
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('msfullscreenchange', handleFullscreenChange);
+    
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('msfullscreenchange', handleFullscreenChange);
+    };
+  }, [overlayData, drawOverlay]);
 
   // Control handlers
   const togglePlayPause = () => {
@@ -447,14 +478,52 @@ export default function VideoOverlay({ videoUrl, analysisId, className = "", ana
     }
   };
   
-  const toggleFullscreen = () => {
-    setIsFullscreen(!isFullscreen);
+  const toggleFullscreen = async () => {
+    const container = containerRef.current;
+    if (!container) return;
+    
+    if (!isFullscreen) {
+      // Enter true fullscreen
+      try {
+        if (container.requestFullscreen) {
+          await container.requestFullscreen();
+        } else if ((container as any).webkitRequestFullscreen) {
+          await (container as any).webkitRequestFullscreen();
+        } else if ((container as any).mozRequestFullScreen) {
+          await (container as any).mozRequestFullScreen();
+        } else if ((container as any).msRequestFullscreen) {
+          await (container as any).msRequestFullscreen();
+        }
+        setIsFullscreen(true);
+      } catch (err) {
+        console.log('Fullscreen not supported, using CSS fullscreen fallback');
+        setIsFullscreen(true);
+      }
+    } else {
+      // Exit fullscreen
+      try {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else if ((document as any).webkitExitFullscreen) {
+          await (document as any).webkitExitFullscreen();
+        } else if ((document as any).mozCancelFullScreen) {
+          await (document as any).mozCancelFullScreen();
+        } else if ((document as any).msExitFullscreen) {
+          await (document as any).msExitFullscreen();
+        }
+        setIsFullscreen(false);
+      } catch (err) {
+        console.log('Exit fullscreen error, using CSS fallback');
+        setIsFullscreen(false);
+      }
+    }
+    
     // Force overlay redraw after fullscreen change
     setTimeout(() => {
       if (overlayData?.has_overlay) {
         drawOverlay();
       }
-    }, 100);
+    }, 200);
   };
 
   const formatTime = (time: number) => {
@@ -474,16 +543,23 @@ export default function VideoOverlay({ videoUrl, analysisId, className = "", ana
   return (
     <div 
       ref={containerRef} 
-      className={`relative bg-black rounded-lg overflow-hidden ${className} ${
+      className={`relative bg-black overflow-hidden ${className} ${
         isFullscreen 
-          ? 'fixed inset-0 z-50 rounded-none' 
-          : ''
+          ? 'w-screen h-screen' 
+          : 'rounded-lg'
       }`}
-      style={isFullscreen ? { maxHeight: '100vh' } : {}}
+      style={isFullscreen ? { 
+        width: '100vw', 
+        height: '100vh',
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        zIndex: 9999
+      } : {}}
     >
-      {/* Video Container with Aspect Ratio */}
+      {/* Video Container */}
       <div 
-        className="relative w-full" 
+        className="relative w-full h-full" 
         style={{ 
           maxHeight: isFullscreen ? '100vh' : '70vh',
           height: isFullscreen ? '100vh' : 'auto'
@@ -495,9 +571,14 @@ export default function VideoOverlay({ videoUrl, analysisId, className = "", ana
           src={videoUrl}
           className={`w-full object-contain ${
             isFullscreen 
-              ? 'h-full max-h-[100vh]' 
+              ? 'h-screen' 
               : 'h-auto max-h-[70vh]'
           }`}
+          style={isFullscreen ? {
+            width: '100vw',
+            height: '100vh',
+            objectFit: 'contain'
+          } : {}}
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={handleLoadedMetadata}
           onPlay={handlePlay}
