@@ -424,6 +424,9 @@ export default function VideoOverlay({ videoUrl, analysisId, className = "", ana
       document.addEventListener('keydown', handleKeyPress);
       return () => document.removeEventListener('keydown', handleKeyPress);
     }
+    
+    // Return undefined when not in fullscreen (TypeScript requirement)
+    return undefined;
   }, [isFullscreen, overlayData, drawOverlay]);
 
   // Control handlers
