@@ -150,9 +150,6 @@ export default function VideoOverlay({ videoUrl, analysisId, className = "" }: V
     }
 
     // Set canvas size to match video display size
-    const videoRect = video.getBoundingClientRect();
-    const containerRect = video.parentElement?.getBoundingClientRect();
-    
     // Use actual video display dimensions
     const displayWidth = video.offsetWidth;
     const displayHeight = video.offsetHeight;
