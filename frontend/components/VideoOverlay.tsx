@@ -59,7 +59,6 @@ export default function VideoOverlay({ videoUrl, analysisId, className = "" }: V
   const [duration, setDuration] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showInfo, setShowInfo] = useState(false);
   
   // Fetch overlay data
   useEffect(() => {
