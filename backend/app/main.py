@@ -432,12 +432,6 @@ async def upload_video(file: UploadFile = File(...)):
                 analysis_result = create_mock_analysis(file.filename, sport_detected, actual_size)
             
             logger.info(f"Analysis generated for memory video {analysis_id}: {sport_detected}")
-                
-        except Exception as e:
-            # Clean up on error
-            if analysis_id in video_storage:
-                del video_storage[analysis_id]
-            raise e
         
         # 5. Store video and cache analysis (skip Redis for large files to save memory)
         try:
@@ -457,10 +451,13 @@ async def upload_video(file: UploadFile = File(...)):
                 logger.info(f"Skipping Redis cache for large video ({file_size/(1024*1024):.1f}MB) - using memory only")
             
             # Always cache analysis result (small)
-            await redis_service.cache_analysis_result(analysis_id, analysis_result, expire=3600)
-            logger.info(f"Successfully cached analysis for {analysis_id}")
+            try:
+                await redis_service.cache_analysis_result(analysis_id, analysis_result, expire=3600)
+                logger.info(f"Successfully cached analysis for {analysis_id}")
+            except Exception as analysis_cache_error:
+                logger.warning(f"Analysis caching failed: {analysis_cache_error} - analysis available in memory only")
         except Exception as e:
-            logger.warning(f"Redis caching failed: {e} - will serve from memory only")
+            logger.warning(f"Redis video caching failed: {e} - will serve from memory only")
         
         # 6. Erweiterte Antwort
         final_result = {
