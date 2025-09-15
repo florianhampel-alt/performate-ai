@@ -638,9 +638,24 @@ async def upload_video(file: UploadFile = File(...)):
                     # 3. Generate analysis for S3 uploaded video
                     sport_detected = detect_sport_from_filename(file.filename)
                     
-                    # 4. Create analysis based on detected sport
+                    # 4. Create analysis based on detected sport with overlay data
                     if sport_detected in ['climbing', 'bouldering']:
-                        analysis_result = create_intelligent_climbing_analysis(file.filename, actual_size, "")
+                        # Use advanced video analysis service for climbing videos
+                        video_analysis = await video_analysis_service.analyze_climbing_video(
+                            video_path=s3_key,
+                            analysis_id=analysis_id,
+                            sport_type=sport_detected
+                        )
+                        
+                        # Create enhanced analysis result with overlay data
+                        analysis_result = {
+                            **create_intelligent_climbing_analysis(file.filename, actual_size, ""),
+                            "route_analysis": video_analysis.get("route_analysis", {}),
+                            "overlay_data": video_analysis.get("overlay_data", {}),
+                            "has_route_overlay": video_analysis.get("overlay_data", {}).get("has_overlay", False),
+                            "enhanced_insights": video_analysis.get("route_analysis", {}).get("key_insights", []),
+                            "difficulty_estimated": video_analysis.get("route_analysis", {}).get("difficulty_estimated", "Unknown")
+                        }
                     else:
                         analysis_result = create_mock_analysis(file.filename, sport_detected, actual_size)
                     
@@ -685,9 +700,24 @@ async def upload_video(file: UploadFile = File(...)):
             # 3. Generate analysis for memory stored video
             sport_detected = detect_sport_from_filename(file.filename)
             
-            # 4. Create analysis based on detected sport
+            # 4. Create analysis based on detected sport with overlay data
             if sport_detected in ['climbing', 'bouldering']:
-                analysis_result = create_intelligent_climbing_analysis(file.filename, actual_size, "")
+                # Use advanced video analysis service for climbing videos
+                video_analysis = await video_analysis_service.analyze_climbing_video(
+                    video_path=analysis_id,  # Use analysis_id as reference for memory-stored videos
+                    analysis_id=analysis_id,
+                    sport_type=sport_detected
+                )
+                
+                # Create enhanced analysis result with overlay data
+                analysis_result = {
+                    **create_intelligent_climbing_analysis(file.filename, actual_size, ""),
+                    "route_analysis": video_analysis.get("route_analysis", {}),
+                    "overlay_data": video_analysis.get("overlay_data", {}),
+                    "has_route_overlay": video_analysis.get("overlay_data", {}).get("has_overlay", False),
+                    "enhanced_insights": video_analysis.get("route_analysis", {}).get("key_insights", []),
+                    "difficulty_estimated": video_analysis.get("route_analysis", {}).get("difficulty_estimated", "Unknown")
+                }
             else:
                 analysis_result = create_mock_analysis(file.filename, sport_detected, actual_size)
             
