@@ -2,6 +2,11 @@ import type { SportType, AnalysisResult, UploadResponse } from './types'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
+// Debug logging
+console.log('API Configuration:')
+console.log('NEXT_PUBLIC_API_URL:', process.env.NEXT_PUBLIC_API_URL)
+console.log('API_BASE_URL:', API_BASE_URL)
+
 class ApiError extends Error {
   constructor(
     message: string,
@@ -52,25 +57,56 @@ export async function uploadVideo(
   file: File,
   sportType: SportType
 ): Promise<UploadResponse> {
+  console.log(`Uploading to: ${API_BASE_URL}/upload`)
+  console.log('File:', file.name, file.size, 'bytes, Type:', file.type)
+  console.log('Sport type:', sportType)
+  
   const formData = new FormData()
   formData.append('file', file)
   formData.append('sport_type', sportType)
 
-  const response = await fetch(`${API_BASE_URL}/upload`, {
-    method: 'POST',
-    body: formData,
-  })
+  try {
+    const response = await fetch(`${API_BASE_URL}/upload`, {
+      method: 'POST',
+      body: formData,
+      // Remove Content-Type header to let browser set it with boundary for FormData
+    })
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}))
+    console.log('Upload response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('Upload failed with response:', errorText)
+      
+      let errorData
+      try {
+        errorData = JSON.parse(errorText)
+      } catch {
+        errorData = { message: errorText }
+      }
+      
+      throw new ApiError(
+        errorData.message || `HTTP ${response.status}: ${response.statusText}`,
+        response.status,
+        errorData
+      )
+    }
+
+    const result = await response.json()
+    console.log('Upload successful:', result)
+    return result
+    
+  } catch (error) {
+    console.error('Upload request failed:', error)
+    if (error instanceof ApiError) {
+      throw error
+    }
     throw new ApiError(
-      errorData.message || 'Upload failed',
-      response.status,
-      errorData
+      `Network error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      0,
+      error
     )
   }
-
-  return await response.json()
 }
 
 export async function startAnalysis(

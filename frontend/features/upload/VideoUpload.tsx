@@ -45,6 +45,8 @@ export default function VideoUpload() {
     setUploadProgress(0)
 
     try {
+      console.log('Starting upload for file:', file.name, 'Sport:', selectedSport)
+      
       // Simulate upload progress
       const progressInterval = setInterval(() => {
         setUploadProgress(prev => {
@@ -56,7 +58,9 @@ export default function VideoUpload() {
         })
       }, 500)
 
+      console.log('Calling uploadVideo API...')
       const uploadResult = await uploadVideo(file, selectedSport)
+      console.log('Upload result:', uploadResult)
       
       clearInterval(progressInterval)
       setUploadProgress(100)
@@ -64,12 +68,25 @@ export default function VideoUpload() {
       
       // Start analysis
       setUploadStatus('analyzing')
-      const analysisResult = await startAnalysis(uploadResult.fileId, selectedSport)
-      setAnalysisId(analysisResult.analysisId)
-      setUploadStatus('completed')
+      console.log('Starting analysis with fileId:', uploadResult.fileId || uploadResult.analysis_id)
+      
+      // The backend returns analysis_id directly in upload response
+      if (uploadResult.analysis_id) {
+        setAnalysisId(uploadResult.analysis_id)
+        setUploadStatus('completed')
+      } else {
+        // Fallback: try startAnalysis if no analysis_id in upload response
+        const analysisResult = await startAnalysis(uploadResult.fileId, selectedSport)
+        setAnalysisId(analysisResult.analysisId)
+        setUploadStatus('completed')
+      }
 
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed')
+      console.error('Upload error:', err)
+      clearInterval(progressInterval)
+      const errorMessage = err instanceof Error ? err.message : 'Upload failed'
+      console.error('Error details:', errorMessage)
+      setError(`Upload failed: ${errorMessage}`)
       setUploadStatus('error')
       setUploadProgress(0)
     }
