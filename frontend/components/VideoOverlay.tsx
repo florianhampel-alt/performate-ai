@@ -64,12 +64,33 @@ export default function VideoOverlay({ videoUrl, analysisId, className = "" }: V
   useEffect(() => {
     const fetchOverlayData = async () => {
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/analysis/${analysisId}/overlay`);
+        const url = `${process.env.NEXT_PUBLIC_API_URL}/analysis/${analysisId}/overlay`;
+        console.log('🔍 Fetching overlay data from:', url);
+        
+        const response = await fetch(url);
+        console.log('📡 Overlay response status:', response.status);
+        
         if (response.ok) {
           const data = await response.json();
+          console.log('📊 Overlay data received:', data);
+          console.log('🎯 Has overlay:', data.has_overlay);
+          console.log('📍 Overlay elements count:', data.overlay_elements?.length || 0);
+          
+          if (data.has_overlay && data.overlay_elements?.length > 0) {
+            console.log('✅ Overlay data looks good, setting up overlays...');
+            data.overlay_elements.forEach((element, i) => {
+              console.log(`Element ${i}:`, element.type, element);
+            });
+          } else {
+            console.warn('⚠️ No overlay elements found');
+          }
+          
           setOverlayData(data);
         } else {
-          console.warn('No overlay data available');
+          console.warn('⚠️ No overlay data available, status:', response.status);
+          const errorText = await response.text();
+          console.log('Error response:', errorText);
+          
           setOverlayData({ 
             has_overlay: false, 
             overlay_elements: [], 
@@ -79,7 +100,7 @@ export default function VideoOverlay({ videoUrl, analysisId, className = "" }: V
           });
         }
       } catch (err) {
-        console.error('Error fetching overlay data:', err);
+        console.error('❌ Error fetching overlay data:', err);
         setError('Failed to load route analysis');
       } finally {
         setLoading(false);
@@ -112,37 +133,68 @@ export default function VideoOverlay({ videoUrl, analysisId, className = "" }: V
     const canvas = canvasRef.current;
     const video = videoRef.current;
     
-    if (!canvas || !video || !overlayData?.has_overlay) return;
+    if (!canvas || !video) {
+      console.log('🚫 Canvas or video not available for drawing');
+      return;
+    }
+    
+    if (!overlayData?.has_overlay) {
+      console.log('🚫 No overlay data available for drawing');
+      return;
+    }
     
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    if (!ctx) {
+      console.log('🚫 Could not get canvas context');
+      return;
+    }
 
+    // Set canvas size to match video display size
+    const videoRect = video.getBoundingClientRect();
+    const containerRect = video.parentElement?.getBoundingClientRect();
+    
+    // Use actual video display dimensions
+    const displayWidth = video.offsetWidth;
+    const displayHeight = video.offsetHeight;
+    
+    canvas.width = displayWidth;
+    canvas.height = displayHeight;
+    
+    console.log(`🎨 Drawing overlay: ${displayWidth}x${displayHeight}, video time: ${currentTime.toFixed(2)}s`);
+    
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // Set canvas size to match video
-    const videoRect = video.getBoundingClientRect();
-    canvas.width = videoRect.width;
-    canvas.height = videoRect.height;
-    
     // Calculate scale factors
-    const scaleX = canvas.width / overlayData.video_dimensions.width;
-    const scaleY = canvas.height / overlayData.video_dimensions.height;
+    const scaleX = canvas.width / (overlayData.video_dimensions?.width || 640);
+    const scaleY = canvas.height / (overlayData.video_dimensions?.height || 480);
+    
+    console.log(`📏 Scale factors: ${scaleX.toFixed(2)}x, ${scaleY.toFixed(2)}y`);
     
     // Draw overlay elements
-    overlayData.overlay_elements.forEach((element) => {
+    let elementsDrawn = 0;
+    overlayData.overlay_elements?.forEach((element, index) => {
+      console.log(`🎯 Drawing element ${index}: ${element.type}`);
+      
       switch (element.type) {
         case 'ideal_route_line':
           drawRouteLine(ctx, element, scaleX, scaleY, currentTime);
+          elementsDrawn++;
           break;
         case 'hold_marker':
           drawHoldMarker(ctx, element, scaleX, scaleY, currentTime);
+          elementsDrawn++;
           break;
         case 'performance_marker':
           drawPerformanceMarker(ctx, element, currentTime);
+          elementsDrawn++;
           break;
+        default:
+          console.warn(`❓ Unknown element type: ${element.type}`);
       }
     });
+    
+    console.log(`✏️ Drew ${elementsDrawn} elements on canvas`);
   }, [overlayData, currentTime]);
 
   const drawRouteLine = (
@@ -302,26 +354,29 @@ export default function VideoOverlay({ videoUrl, analysisId, className = "" }: V
 
   return (
     <div ref={containerRef} className={`relative bg-black rounded-lg overflow-hidden ${className}`}>
-      {/* Video Element */}
-      <video
-        ref={videoRef}
-        src={videoUrl}
-        className="w-full h-auto"
-        onTimeUpdate={handleTimeUpdate}
-        onLoadedMetadata={handleLoadedMetadata}
-        onPlay={handlePlay}
-        onPause={handlePause}
-        preload="metadata"
-      />
-      
-      {/* Canvas Overlay */}
-      {overlayData?.has_overlay && (
-        <canvas
-          ref={canvasRef}
-          className="absolute inset-0 w-full h-full pointer-events-none"
-          style={{ zIndex: 1 }}
+      {/* Video Container with Aspect Ratio */}
+      <div className="relative w-full" style={{ maxHeight: '70vh' }}>
+        {/* Video Element */}
+        <video
+          ref={videoRef}
+          src={videoUrl}
+          className="w-full h-auto max-h-[70vh] object-contain"
+          onTimeUpdate={handleTimeUpdate}
+          onLoadedMetadata={handleLoadedMetadata}
+          onPlay={handlePlay}
+          onPause={handlePause}
+          preload="metadata"
         />
-      )}
+        
+        {/* Canvas Overlay */}
+        {overlayData?.has_overlay && (
+          <canvas
+            ref={canvasRef}
+            className="absolute inset-0 w-full h-full pointer-events-none"
+            style={{ zIndex: 1 }}
+          />
+        )}
+      </div>
       
       {/* Info Panel */}
       {overlayData?.has_overlay && (
