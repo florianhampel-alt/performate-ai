@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config.base import settings
 from app.services.redis_service import redis_service
 from app.utils.logger import get_logger
+from app.analyzers.climbing_analyzer import ClimbingPoseAnalyzer
 
 logger = get_logger(__name__)
 
@@ -50,15 +51,33 @@ async def upload_video(file: UploadFile = File(...)):
         if file.content_type not in allowed_types:
             raise HTTPException(status_code=400, detail=f"Unsupported file type: {file.content_type}")
         
-        # 2. Lese Video-Daten
+        # 2. Speichere Video temporär für Analyse
         contents = await file.read()
         file_size = len(contents)
         
-        # 3. Simuliere AI-Analyse basierend auf Filename und Metadaten
-        sport_detected = detect_sport_from_filename(file.filename)
-        
-        # 4. Erstelle erweiterte Mock-Analyse
-        analysis_result = create_mock_analysis(file.filename, sport_detected, file_size)
+        # Save to temporary file
+        temp_video_path = None
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as temp_file:
+                temp_video_path = temp_file.name
+                temp_file.write(contents)
+            
+            # 3. Detektiere Sport-Typ
+            sport_detected = detect_sport_from_filename(file.filename)
+            
+            # 4. Führe echte Klettern-Analyse durch
+            if sport_detected in ['climbing', 'bouldering']:
+                analyzer = ClimbingPoseAnalyzer()
+                climbing_metrics = analyzer.analyze_video(temp_video_path)
+                analysis_result = convert_climbing_metrics_to_dict(climbing_metrics)
+            else:
+                # Fallback für andere Sports
+                analysis_result = create_mock_analysis(file.filename, sport_detected, file_size)
+                
+        finally:
+            # Clean up temporary file
+            if temp_video_path and os.path.exists(temp_video_path):
+                os.unlink(temp_video_path)
         
         # 5. Cache Ergebnis in Redis (falls verfügbar)
         try:
@@ -182,6 +201,31 @@ def create_mock_analysis(filename: str, sport: str, file_size: int) -> dict:
         'performance_score': performance_score,
         'areas_for_improvement': base_analysis['areas_for_improvement'],
         'strengths': base_analysis['strengths']
+    }
+
+
+def convert_climbing_metrics_to_dict(metrics) -> dict:
+    """Convert ClimbingMetrics to dictionary format for API response"""
+    return {
+        'sport_detected': 'climbing',
+        'difficulty_grade': metrics.difficulty_grade,
+        'confidence': int(metrics.movement_quality_score * 100),
+        'technical_analysis': f'Klettern-Video analysiert. Schwierigkeitsgrad: {metrics.difficulty_grade}. '
+                            f'Bewegungsqualität: {metrics.movement_quality_score:.2f}/1.0. '
+                            f'Balance: {metrics.balance_score:.2f}, Effizienz: {metrics.efficiency_score:.2f}, '
+                            f'Technik: {metrics.technique_score:.2f}.',
+        'key_insights': metrics.key_insights,
+        'recommendations': metrics.recommendations,
+        'performance_score': int(metrics.movement_quality_score * 100),
+        'areas_for_improvement': metrics.areas_for_improvement,
+        'strengths': metrics.strengths,
+        'detailed_metrics': {
+            'balance_score': metrics.balance_score,
+            'efficiency_score': metrics.efficiency_score,
+            'technique_score': metrics.technique_score,
+            'wall_distance_avg': metrics.wall_distance_avg,
+            'movement_segments': metrics.movement_segments
+        }
     }
 
 
