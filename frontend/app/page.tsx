@@ -3,6 +3,7 @@
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import SportSelector from '@/features/sports/SportSelector'
+import Link from 'next/link'
 
 export default function Home() {
   return (
@@ -19,9 +20,11 @@ export default function Home() {
           skiing, motocross, and more.
         </p>
         <div className="mt-10 flex justify-center gap-4">
-          <Button size="lg" className="px-8 py-3">
-            Upload Video
-          </Button>
+          <Link href="/upload">
+            <Button size="lg" className="px-8 py-3">
+              Upload Video
+            </Button>
+          </Link>
           <Button variant="outline" size="lg" className="px-8 py-3">
             Watch Demo
           </Button>
