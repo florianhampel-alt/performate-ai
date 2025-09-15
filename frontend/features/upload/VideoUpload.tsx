@@ -112,7 +112,7 @@ export default function VideoUpload() {
           </label>
           <Select 
             value={selectedSport}
-            onValueChange={(value: SportType) => setSelectedSport(value)}
+            onValueChange={(value: string) => setSelectedSport(value as SportType)}
           >
             {SUPPORTED_SPORTS.map(sport => (
               <option key={sport} value={sport}>
