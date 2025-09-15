@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     # API settings
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8000
-    ALLOWED_HOSTS_STR: str = "localhost,127.0.0.1"
+    ALLOWED_HOSTS_STR: str = "localhost,127.0.0.1,*.vercel.app,performate-ai.vercel.app"
     
     # Database settings (if needed in future)
     DATABASE_URL: str = "sqlite:///./performate-ai.db"
