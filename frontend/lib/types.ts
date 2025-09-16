@@ -78,6 +78,19 @@ export interface AnalysisResult {
     overall_score?: number
     key_insights?: string[]
     recommendations?: string[]
+    ideal_route?: Array<{
+      time: number
+      x: number
+      y: number
+      hold_type: string
+      source?: string
+    }>
+    performance_segments?: Array<{
+      time_start: number
+      time_end: number
+      score: number
+      issue?: string | null
+    }>
   }
   overlay_data?: {
     has_overlay: boolean
