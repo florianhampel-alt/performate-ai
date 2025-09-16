@@ -450,7 +450,7 @@ async def complete_upload(request: dict):
         if sport_detected in ['climbing', 'bouldering']:
             # Use advanced video analysis service for climbing videos
             video_analysis = await video_analysis_service.analyze_climbing_video(
-                video_path=f"/videos/{analysis_id}",  # S3 path reference
+                video_path=video_info['s3_key'],  # Use actual S3 key for frame extraction
                 analysis_id=analysis_id,
                 sport_type=sport_detected
             )

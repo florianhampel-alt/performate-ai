@@ -68,20 +68,28 @@ class FrameExtractionService:
     async def _get_video_file(self, video_path: str, analysis_id: str) -> Optional[str]:
         """Get video file path (download from S3 if needed)"""
         try:
-            if video_path.startswith('/videos/'):
+            # Check if this is an S3 key (starts with 'videos/' or '/videos/')
+            if video_path.startswith('videos/') or video_path.startswith('/videos/'):
                 # S3 video - download to temporary file
-                s3_key = video_path.replace('/videos/', f'videos/{analysis_id}/')
+                s3_key = video_path.lstrip('/')  # Remove leading slash if present
+                logger.info(f"Downloading video from S3 key: {s3_key}")
                 
                 # Create temp file
                 temp_fd, temp_path = tempfile.mkstemp(suffix='.mp4')
                 os.close(temp_fd)
                 
                 # Download from S3
+                logger.info(f"📯 Downloading video from S3: {s3_key} -> {temp_path}")
                 success = await s3_service.download_file(s3_key, temp_path)
                 if success:
+                    file_size = os.path.getsize(temp_path) if os.path.exists(temp_path) else 0
+                    logger.info(f"✅ S3 download successful: {file_size/(1024*1024):.1f}MB")
                     return temp_path
                 else:
-                    logger.error(f"Failed to download video from S3: {s3_key}")
+                    logger.error(f"❌ Failed to download video from S3: {s3_key}")
+                    # Check if S3 service is enabled
+                    if not s3_service.enabled:
+                        logger.error(f"⚠️ S3 service is disabled - check AWS credentials")
                     return None
             else:
                 # Local video path
@@ -229,13 +237,17 @@ class FrameExtractionService:
                - Specific technique recommendations
                - Safety considerations
                
-            5. **Coordinate Analysis**:
-               - Estimate pixel coordinates of key holds (if clearly visible)
-               - Body position relative to holds
-               - Ideal body positioning suggestions
+            5. **Coordinate Analysis** (IMPORTANT):
+               - For any visible climbing holds, provide pixel coordinates in format: "Hold at (x, y)"
+               - Climber's hand positions: "Left hand at (x, y), Right hand at (x, y)"
+               - Key body position coordinates where relevant
+               - Format coordinates as: (x, y) where x is horizontal, y is vertical
+               - Image dimensions are approximately 1280x720 pixels
                
             Provide specific, actionable feedback that would help improve climbing technique.
             Rate overall technique on this frame from 1-10 and explain the rating.
+            
+            COORDINATE FORMAT: When mentioning positions, always use format "(x, y)" for pixel coordinates.
             """
         else:
             return f"Analyze this {sport_type} video frame for technique, form, and performance feedback."
