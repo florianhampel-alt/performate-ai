@@ -342,7 +342,7 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
           {
             title: "AI Confidence",
             message: `Analysis confidence: ${Math.round((analysis.ai_confidence || 0.85) * 100)}%`,
-            priority: analysis.ai_confidence > 0.7 ? "high" : "medium"
+            priority: (analysis.ai_confidence || 0.85) > 0.7 ? "high" : "medium"
           }
         ].map((insight, index) => (
           <Card key={index} className="p-6">
