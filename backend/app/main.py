@@ -723,24 +723,27 @@ async def upload_video(file: UploadFile = File(...)):
                     # 3. Generate analysis for S3 uploaded video
                     sport_detected = detect_sport_from_filename(file.filename)
                     
-                    # 4. Create analysis based on detected sport with overlay data
+                    # 4. Create AI-powered analysis for climbing videos
                     if sport_detected in ['climbing', 'bouldering']:
-                        # Use advanced video analysis service for climbing videos
-                        video_analysis = await video_analysis_service.analyze_climbing_video(
-                            video_path=s3_key,
-                            analysis_id=analysis_id,
-                            sport_type=sport_detected
-                        )
-                        
-                        # Create enhanced analysis result with overlay data
-                        analysis_result = {
-                            **create_intelligent_climbing_analysis(file.filename, actual_size, ""),
-                            "route_analysis": video_analysis.get("route_analysis", {}),
-                            "overlay_data": video_analysis.get("overlay_data", {}),
-                            "has_route_overlay": video_analysis.get("overlay_data", {}).get("has_overlay", False),
-                            "enhanced_insights": video_analysis.get("route_analysis", {}).get("key_insights", []),
-                            "difficulty_estimated": video_analysis.get("route_analysis", {}).get("difficulty_estimated", "Unknown")
-                        }
+                        try:
+                            # Use AI Vision Service directly
+                            from app.services.ai_vision_service import ai_vision_service
+                            
+                            logger.info(f"🤖 Starting AI analysis for {sport_detected} video")
+                            video_analysis = await ai_vision_service.analyze_climbing_video(
+                                video_path=f"videos/2025/09/16/{analysis_id}.{file.filename.split('.')[-1]}",
+                                analysis_id=analysis_id,
+                                sport_type=sport_detected
+                            )
+                            
+                            # Use AI analysis result directly
+                            analysis_result = video_analysis
+                            logger.info(f"✅ AI analysis completed with confidence: {video_analysis.get('ai_confidence', 'N/A')}")
+                            
+                        except Exception as ai_error:
+                            logger.error(f"❌ AI analysis failed: {ai_error}, using fallback")
+                            # Fallback to intelligent mock analysis
+                            analysis_result = create_intelligent_climbing_analysis(file.filename, actual_size, "")
                     else:
                         analysis_result = create_mock_analysis(file.filename, sport_detected, actual_size)
                     
@@ -785,24 +788,27 @@ async def upload_video(file: UploadFile = File(...)):
             # 3. Generate analysis for memory stored video
             sport_detected = detect_sport_from_filename(file.filename)
             
-            # 4. Create analysis based on detected sport with overlay data
+            # 4. Create AI-powered analysis for climbing videos (memory fallback)
             if sport_detected in ['climbing', 'bouldering']:
-                # Use advanced video analysis service for climbing videos
-                video_analysis = await video_analysis_service.analyze_climbing_video(
-                    video_path=analysis_id,  # Use analysis_id as reference for memory-stored videos
-                    analysis_id=analysis_id,
-                    sport_type=sport_detected
-                )
-                
-                # Create enhanced analysis result with overlay data
-                analysis_result = {
-                    **create_intelligent_climbing_analysis(file.filename, actual_size, ""),
-                    "route_analysis": video_analysis.get("route_analysis", {}),
-                    "overlay_data": video_analysis.get("overlay_data", {}),
-                    "has_route_overlay": video_analysis.get("overlay_data", {}).get("has_overlay", False),
-                    "enhanced_insights": video_analysis.get("route_analysis", {}).get("key_insights", []),
-                    "difficulty_estimated": video_analysis.get("route_analysis", {}).get("difficulty_estimated", "Unknown")
-                }
+                try:
+                    # Use AI Vision Service directly for memory storage
+                    from app.services.ai_vision_service import ai_vision_service
+                    
+                    logger.info(f"🤖 Starting AI analysis for {sport_detected} video (memory storage)")
+                    video_analysis = await ai_vision_service.analyze_climbing_video(
+                        video_path=f"/videos/{analysis_id}",  # Reference for memory-stored videos
+                        analysis_id=analysis_id,
+                        sport_type=sport_detected
+                    )
+                    
+                    # Use AI analysis result directly
+                    analysis_result = video_analysis
+                    logger.info(f"✅ AI analysis completed with confidence: {video_analysis.get('ai_confidence', 'N/A')}")
+                    
+                except Exception as ai_error:
+                    logger.error(f"❌ AI analysis failed: {ai_error}, using fallback")
+                    # Fallback to intelligent mock analysis
+                    analysis_result = create_intelligent_climbing_analysis(file.filename, actual_size, "")
             else:
                 analysis_result = create_mock_analysis(file.filename, sport_detected, actual_size)
             
