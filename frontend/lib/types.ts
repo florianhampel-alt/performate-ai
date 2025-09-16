@@ -58,11 +58,14 @@ export interface AnalysisResult {
   sport_type: SportType
   analyzer_type: string
   overall_performance_score: number
+  performance_score?: number  // AI analysis performance score
   comprehensive_insights: AnalysisInsight[]
   unified_recommendations: string[]
-  sport_specific_analysis: SportSpecificAnalysis
-  analysis_summary: AnalysisSummary
+  recommendations?: string[]  // Alternative recommendations array
+  sport_specific_analysis?: SportSpecificAnalysis
+  analysis_summary?: AnalysisSummary
   video_url?: string  // URL to play the uploaded video
+  ai_confidence?: number  // AI confidence score (0-1)
   metadata?: {
     analysis_type: string
     timestamp: string
