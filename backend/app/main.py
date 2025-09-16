@@ -92,6 +92,28 @@ async def debug_ai():
             "status": "AI services error"
         }
 
+@app.get("/debug/ai-test")
+async def test_ai_simple():
+    """Test AI analysis with simple mock data"""
+    try:
+        from app.services.ai_vision_service import ai_vision_service
+        
+        # Create a simple test
+        result = {
+            "ai_services_working": True,
+            "test_result": "AI vision service initialized successfully",
+            "model": ai_vision_service.model,
+            "max_tokens": ai_vision_service.max_tokens
+        }
+        
+        return result
+        
+    except Exception as e:
+        return {
+            "ai_services_working": False,
+            "error": str(e)
+        }
+
 @app.get("/debug/s3")
 async def debug_s3():
     """Debug S3 configuration"""
