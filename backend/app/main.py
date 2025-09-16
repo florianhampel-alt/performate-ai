@@ -13,6 +13,14 @@ from app.services.redis_service import redis_service
 from app.services.s3_service import s3_service
 from app.services.video_analysis_service import video_analysis_service
 from app.utils.logger import get_logger
+
+# Import AI test router
+try:
+    from app.routers.ai_test import router as ai_test_router
+    AI_TEST_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"AI test router not available: {e}")
+    AI_TEST_AVAILABLE = False
 # from app.analyzers.climbing_analyzer import ClimbingPoseAnalyzer  # Disabled for deployment
 
 # In-memory video storage for fallback when S3 is not available
@@ -38,6 +46,13 @@ app.add_middleware(
     max_age=86400  # Cache preflight response for 24 hours
 )
 
+# Include AI test router if available
+if AI_TEST_AVAILABLE:
+    app.include_router(ai_test_router, tags=["AI Testing"])
+    logger.info("AI test router included")
+else:
+    logger.warning("AI test router not available")
+
 @app.get("/")
 async def root():
     return {"message": "Performate AI API", "version": "1.0.0"}
@@ -45,6 +60,37 @@ async def root():
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
+
+@app.get("/debug/ai")
+async def debug_ai():
+    """Debug AI services availability"""
+    try:
+        from app.services.ai_vision_service import ai_vision_service
+        from app.services.frame_extraction_service import frame_extraction_service
+        import cv2
+        import openai
+        
+        return {
+            "ai_vision_service_available": True,
+            "frame_extraction_available": True, 
+            "opencv_version": cv2.__version__,
+            "openai_available": True,
+            "openai_api_key_configured": bool(settings.OPENAI_API_KEY),
+            "status": "AI services ready"
+        }
+    except ImportError as e:
+        return {
+            "ai_vision_service_available": False,
+            "frame_extraction_available": False,
+            "error": str(e),
+            "status": "AI services unavailable"
+        }
+    except Exception as e:
+        return {
+            "ai_vision_service_available": False,
+            "error": str(e),
+            "status": "AI services error"
+        }
 
 @app.get("/debug/s3")
 async def debug_s3():
