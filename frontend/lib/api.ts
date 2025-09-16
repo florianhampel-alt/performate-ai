@@ -57,63 +57,93 @@ export async function uploadVideo(
   file: File,
   sportType: SportType
 ): Promise<UploadResponse> {
-  console.log(`Uploading to: ${API_BASE_URL}/upload`)
-  console.log('File:', file.name, file.size, 'bytes, Type:', file.type)
+  console.log(`Starting S3 presigned upload for: ${file.name} (${file.size} bytes)`)
   console.log('Sport type:', sportType)
   
-  const formData = new FormData()
-  formData.append('file', file)
-  formData.append('sport_type', sportType)
-
-  // Create timeout controller for large files
-  const controller = new AbortController()
-  const timeoutMs = Math.max(60000, (file.size / (1024 * 1024)) * 5000) // 5 seconds per MB, minimum 60s
-  const timeoutId = setTimeout(() => {
-    controller.abort()
-  }, timeoutMs)
-  
-  console.log(`Upload timeout set to: ${timeoutMs}ms (${timeoutMs/1000}s)`)
-
   try {
-    const response = await fetch(`${API_BASE_URL}/upload`, {
+    // Step 1: Initialize upload and get presigned URL
+    console.log('📋 Initializing upload...')
+    const initResponse = await apiRequest<{
+      analysis_id: string
+      upload_url: string
+      upload_fields: Record<string, string>
+      s3_key: string
+      expires_in: number
+      max_file_size: number
+    }>('/upload/init', {
+      method: 'POST',
+      body: JSON.stringify({
+        filename: file.name,
+        content_type: file.type || 'video/mp4',
+        file_size: file.size,
+        sport_type: sportType
+      })
+    })
+    
+    console.log('✅ Upload initialized:', initResponse.analysis_id)
+    console.log('📤 S3 upload URL received, expires in:', initResponse.expires_in, 'seconds')
+    
+    // Step 2: Upload directly to S3 using presigned URL
+    console.log('⬆️ Uploading to S3...')
+    const formData = new FormData()
+    
+    // Add all the required fields from presigned URL
+    Object.entries(initResponse.upload_fields).forEach(([key, value]) => {
+      formData.append(key, value)
+    })
+    
+    // Add the file last (important for S3)
+    formData.append('file', file)
+    
+    // Upload to S3 with generous timeout
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 300000) // 5 minutes
+    
+    const s3Response = await fetch(initResponse.upload_url, {
       method: 'POST',
       body: formData,
-      signal: controller.signal,
-      // Remove Content-Type header to let browser set it with boundary for FormData
+      signal: controller.signal
     })
-
-    console.log('Upload response status:', response.status, response.statusText)
     
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error('Upload failed with response:', errorText)
-      
-      let errorData
-      try {
-        errorData = JSON.parse(errorText)
-      } catch {
-        errorData = { message: errorText }
-      }
-      
-      throw new ApiError(
-        errorData.message || `HTTP ${response.status}: ${response.statusText}`,
-        response.status,
-        errorData
-      )
+    clearTimeout(timeoutId)
+    
+    if (!s3Response.ok) {
+      const errorText = await s3Response.text()
+      console.error('❌ S3 upload failed:', errorText)
+      throw new ApiError(`S3 upload failed: ${s3Response.statusText}`, s3Response.status)
     }
-
-    clearTimeout(timeoutId) // Clear timeout on success
-    const result = await response.json()
-    console.log('Upload successful:', result)
-    return result
+    
+    console.log('✅ S3 upload successful!')
+    
+    // Step 3: Complete upload and start analysis
+    console.log('🔄 Completing upload and starting analysis...')
+    const completeResponse = await apiRequest<{
+      analysis_id: string
+      status: string
+      sport_detected: string
+      video_url: string
+    }>('/upload/complete', {
+      method: 'POST',
+      body: JSON.stringify({
+        analysis_id: initResponse.analysis_id
+      })
+    })
+    
+    console.log('🎉 Upload complete! Analysis started:', completeResponse.analysis_id)
+    
+    return {
+      analysis_id: completeResponse.analysis_id,
+      fileId: completeResponse.analysis_id, // For backward compatibility
+      status: completeResponse.status,
+      message: 'Upload successful, analysis started'
+    }
     
   } catch (error) {
-    clearTimeout(timeoutId) // Clear timeout on error
-    console.error('Upload request failed:', error)
+    console.error('💥 Upload failed:', error)
     
-    if (error instanceof DOMException && error.name === 'AbortError') {
+    if (error instanceof DOMException && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
       throw new ApiError(
-        `Upload timeout: File too large or connection too slow. Try a smaller video or better connection.`,
+        'Upload timeout: Please try again or use a smaller video.',
         408,
         { timeout: true }
       )
@@ -122,8 +152,9 @@ export async function uploadVideo(
     if (error instanceof ApiError) {
       throw error
     }
+    
     throw new ApiError(
-      `Network error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      `Upload error: ${error instanceof Error ? error.message : 'Unknown error'}`,
       0,
       error
     )
