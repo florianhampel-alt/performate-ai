@@ -16,8 +16,23 @@ class OpenAIService:
         self.client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
     async def analyze_sports_video(self, frames: List[bytes], video_filename: str, analysis_id: str) -> Dict:
-        """Führe eine vollständige AI-Sportanalyse durch"""
-        try:
+        """DISABLED: Expensive AI analysis - returns fallback to prevent token waste"""
+        logger.warning(f"🚫💰 OpenAI Service DISABLED to prevent token consumption for {analysis_id}")
+        # Return immediate fallback without API calls
+        return {
+            "sport_detected": "general",
+            "confidence": 50,
+            "technical_analysis": f"Video processed - expensive AI analysis disabled for cost control",
+            "key_insights": ["Video processing completed", "Cost-optimized analysis active"],
+            "recommendations": ["Use cost-efficient analysis mode"],
+            "performance_score": 70,
+            "areas_for_improvement": ["Analysis mode"],
+            "strengths": ["Video uploaded successfully"]
+        }
+        
+        # OLD EXPENSIVE CODE COMMENTED OUT:
+        try_expensive_analysis = False
+        if try_expensive_analysis:
             # Konvertiere Frames zu base64 für OpenAI Vision
             base64_frames = []
             for frame in frames[:3]:  # Limitiere auf 3 Frames für Kosten

@@ -20,8 +20,8 @@ logger = get_logger(__name__)
 
 class FrameExtractionService:
     def __init__(self):
-        self.max_frames = 3  # REDUCED: Only 3 frames to minimize token cost
-        self.frame_size = (720, 480)  # REDUCED: Lower resolution for efficiency
+        self.max_frames = 1  # ULTRA EFFICIENT: Single frame analysis only
+        self.frame_size = (480, 320)  # ULTRA REDUCED: Smallest workable resolution
         
     async def extract_frames_from_video(
         self, 
@@ -207,11 +207,8 @@ class FrameExtractionService:
             return None
     
     def get_frame_analysis_prompt(self, sport_type: str = "climbing") -> str:
-        """Get AI analysis prompt for frames - OPTIMIZED FOR LOW TOKEN USAGE"""
-        if sport_type in ['climbing', 'bouldering']:
-            return """Analyze this climbing frame: 1) Rate technique 1-10, 2) List visible holds with coordinates (x,y), 3) Give 2 key tips. Be concise."""
-        else:
-            return f"Analyze this {sport_type} frame: rate 1-10, key tips. Be brief."
+        """ULTRA MINIMAL prompt for maximum token efficiency"""
+        return "Rate climbing technique 1-10. Give 1 tip. Brief."
 
 
 # Global service instance

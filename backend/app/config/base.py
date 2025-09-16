@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     # OpenAI settings
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-4-vision-preview"
+    ENABLE_AI_ANALYSIS: str = "false"  # Default: disabled for cost control
     
     # File upload settings
     MAX_FILE_SIZE: int = 120 * 1024 * 1024  # 120MB

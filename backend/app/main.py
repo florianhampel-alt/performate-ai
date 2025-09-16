@@ -770,7 +770,7 @@ async def upload_video(file: UploadFile = File(...)):
                             
                             logger.info(f"🤖 Starting AI analysis for {sport_detected} video")
                             video_analysis = await ai_vision_service.analyze_climbing_video(
-                                video_path=f"videos/2025/09/16/{analysis_id}.{file.filename.split('.')[-1]}",
+                                video_path=s3_key,  # Use actual S3 key, not hardcoded path
                                 analysis_id=analysis_id,
                                 sport_type=sport_detected
                             )
