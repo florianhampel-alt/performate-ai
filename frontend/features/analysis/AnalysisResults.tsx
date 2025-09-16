@@ -369,8 +369,8 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
       <Card className="p-8 mb-8">
         <h2 className="text-2xl font-semibold mb-6">Training Recommendations</h2>
         <div className="grid md:grid-cols-2 gap-4">
-          {(analysis.unified_recommendations?.length > 0 ? analysis.unified_recommendations : 
-           analysis.route_analysis?.recommendations?.length > 0 ? analysis.route_analysis.recommendations :
+          {(analysis.unified_recommendations?.length > 0 ? (analysis.unified_recommendations || []) : 
+           analysis.route_analysis?.recommendations?.length > 0 ? (analysis.route_analysis.recommendations || []) :
            analysis.recommendations || [
              "Focus on maintaining balance during dynamic movements",
              "Practice precise foot placement on smaller holds",
