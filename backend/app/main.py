@@ -114,6 +114,45 @@ async def test_ai_simple():
             "error": str(e)
         }
 
+@app.get("/debug/force-ai/{analysis_id}")
+async def force_ai_analysis(analysis_id: str):
+    """Force AI analysis for a specific video"""
+    try:
+        from app.services.ai_vision_service import ai_vision_service
+        
+        logger.info(f"🧪 FORCING AI analysis for {analysis_id}")
+        
+        # Force AI analysis directly
+        result = await ai_vision_service.analyze_climbing_video(
+            video_path=f"/videos/{analysis_id}",
+            analysis_id=analysis_id,
+            sport_type="climbing"
+        )
+        
+        return {
+            "status": "success",
+            "analysis_id": analysis_id,
+            "ai_confidence": result.get("ai_confidence", "N/A"),
+            "has_overlay": result.get("overlay_data", {}).get("has_overlay", False),
+            "overlay_elements": len(result.get("overlay_data", {}).get("elements", [])),
+            "performance_score": result.get("performance_score", "N/A"),
+            "error": result.get("error", None),
+            "route_detected": result.get("route_analysis", {}).get("route_detected", False)
+        }
+        
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        logger.error(f"❌ FORCE AI TEST FAILED: {str(e)}")
+        logger.error(f"Full traceback: {error_details}")
+        
+        return {
+            "status": "error",
+            "analysis_id": analysis_id,
+            "error": str(e),
+            "traceback": error_details
+        }
+
 @app.get("/debug/s3")
 async def debug_s3():
     """Debug S3 configuration"""
