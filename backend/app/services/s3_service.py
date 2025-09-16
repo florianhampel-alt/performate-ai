@@ -190,6 +190,29 @@ class S3Service:
         except Exception as e:
             logger.error(f"Failed to upload video to S3: {str(e)}")
             return None
+    
+    async def download_file(self, s3_key: str, local_path: str) -> bool:
+        """
+        Download file from S3 to local path
+        
+        Args:
+            s3_key: S3 object key
+            local_path: Local file path to save to
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self.enabled:
+            logger.warning("S3 not configured - cannot download file")
+            return False
+            
+        try:
+            self.client.download_file(self.bucket, s3_key, local_path)
+            logger.info(f"Successfully downloaded file from S3: {s3_key} -> {local_path}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to download file from S3 {s3_key}: {str(e)}")
+            return False
 
     async def generate_presigned_upload_url(
         self, 

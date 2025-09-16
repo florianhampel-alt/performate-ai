@@ -14,6 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from app.utils.logger import get_logger
 from app.services.s3_service import s3_service
+from app.services.ai_vision_service import ai_vision_service
 
 logger = get_logger(__name__)
 
@@ -29,7 +30,7 @@ class VideoAnalysisService:
         sport_type: str = "climbing"
     ) -> Dict:
         """
-        Analyze climbing video and generate overlay with ideal route and performance markers
+        Analyze climbing video using AI Vision and generate overlay data
         
         Args:
             video_path: Path to video file (local or S3 URL)
@@ -37,26 +38,23 @@ class VideoAnalysisService:
             sport_type: Type of sport (climbing, bouldering, etc.)
             
         Returns:
-            Analysis results with processed video info
+            Analysis results with AI-powered insights and overlay data
         """
         try:
-            logger.info(f"Starting video analysis for {analysis_id}: {sport_type}")
+            logger.info(f"Starting AI-powered video analysis for {analysis_id}: {sport_type}")
             
-            # Run video processing in thread pool to avoid blocking
-            loop = asyncio.get_event_loop()
-            result = await loop.run_in_executor(
-                self.executor,
-                self._process_video_sync,
+            # Use AI Vision Service for real analysis
+            result = await ai_vision_service.analyze_climbing_video(
                 video_path,
                 analysis_id,
                 sport_type
             )
             
-            logger.info(f"Video analysis completed for {analysis_id}")
+            logger.info(f"AI video analysis completed for {analysis_id}")
             return result
             
         except Exception as e:
-            logger.error(f"Video analysis failed for {analysis_id}: {str(e)}")
+            logger.error(f"AI video analysis failed for {analysis_id}: {str(e)}")
             return self._create_fallback_analysis(analysis_id, sport_type)
     
     def _process_video_sync(self, video_path: str, analysis_id: str, sport_type: str) -> Dict:
