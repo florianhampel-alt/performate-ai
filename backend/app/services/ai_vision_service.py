@@ -20,7 +20,7 @@ class AIVisionService:
     def __init__(self):
         self.client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
         self.model = "gpt-4o"  # GPT-4 Vision model
-        self.max_tokens = 1000
+        self.max_tokens = 300  # REDUCED: Limit token usage per frame
         
     async def analyze_climbing_video(
         self, 
@@ -47,16 +47,10 @@ class AIVisionService:
                 video_path, analysis_id
             )
             
-            # Handle frame extraction failure
+            # Handle frame extraction failure - NO TOKEN WASTE
             if not frames:
                 logger.warning(f"🎬 No frames extracted for {analysis_id} from {video_path}")
-                logger.info(f"🔧 Attempting GPT-4 Vision test to verify AI connectivity...")
-                # Create mock analysis with AI indicators for testing
-                mock_analysis = await self._create_mock_ai_analysis(analysis_id, sport_type)
-                if mock_analysis.get('ai_confidence', 0) > 0.5:
-                    logger.info(f"✅ GPT-4 Vision is working - frame extraction is the issue")
-                    return mock_analysis
-                logger.error(f"❌ Both frame extraction and GPT-4 Vision failed - using fallback")
+                logger.error(f"❌ Frame extraction failed - using fallback without AI calls")
                 return self._create_fallback_analysis(analysis_id, sport_type)
             
             logger.info(f"Analyzing {len(frames)} frames with GPT-4 Vision")

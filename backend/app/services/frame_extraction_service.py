@@ -20,8 +20,8 @@ logger = get_logger(__name__)
 
 class FrameExtractionService:
     def __init__(self):
-        self.max_frames = 8  # Maximum frames to extract for AI analysis
-        self.frame_size = (1280, 720)  # Target frame size for analysis
+        self.max_frames = 3  # REDUCED: Only 3 frames to minimize token cost
+        self.frame_size = (720, 480)  # REDUCED: Lower resolution for efficiency
         
     async def extract_frames_from_video(
         self, 
@@ -207,50 +207,11 @@ class FrameExtractionService:
             return None
     
     def get_frame_analysis_prompt(self, sport_type: str = "climbing") -> str:
-        """Get AI analysis prompt for frames"""
+        """Get AI analysis prompt for frames - OPTIMIZED FOR LOW TOKEN USAGE"""
         if sport_type in ['climbing', 'bouldering']:
-            return """
-            Analyze this climbing/bouldering video frame and provide detailed feedback on:
-            
-            1. **Climbing Technique**:
-               - Body positioning and posture
-               - Arm and leg positioning
-               - Center of gravity and balance
-               - Grip types and hand placement
-               - Foot technique and placement
-               
-            2. **Movement Quality**:
-               - Efficiency of movement (1-10 score)
-               - Static vs dynamic movement assessment
-               - Energy conservation
-               - Flow and smoothness
-               
-            3. **Route Analysis**:
-               - Visible holds and their types (crimps, jugs, slopers, etc.)
-               - Potential route line/sequence
-               - Difficulty assessment (estimate grade if possible)
-               - Key crux sections
-               
-            4. **Performance Feedback**:
-               - What the climber is doing well
-               - Areas for improvement
-               - Specific technique recommendations
-               - Safety considerations
-               
-            5. **Coordinate Analysis** (IMPORTANT):
-               - For any visible climbing holds, provide pixel coordinates in format: "Hold at (x, y)"
-               - Climber's hand positions: "Left hand at (x, y), Right hand at (x, y)"
-               - Key body position coordinates where relevant
-               - Format coordinates as: (x, y) where x is horizontal, y is vertical
-               - Image dimensions are approximately 1280x720 pixels
-               
-            Provide specific, actionable feedback that would help improve climbing technique.
-            Rate overall technique on this frame from 1-10 and explain the rating.
-            
-            COORDINATE FORMAT: When mentioning positions, always use format "(x, y)" for pixel coordinates.
-            """
+            return """Analyze this climbing frame: 1) Rate technique 1-10, 2) List visible holds with coordinates (x,y), 3) Give 2 key tips. Be concise."""
         else:
-            return f"Analyze this {sport_type} video frame for technique, form, and performance feedback."
+            return f"Analyze this {sport_type} frame: rate 1-10, key tips. Be brief."
 
 
 # Global service instance

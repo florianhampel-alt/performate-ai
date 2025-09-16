@@ -65,14 +65,14 @@ export async function uploadVideo(
   formData.append('file', file)
   formData.append('sport_type', sportType)
 
-  // Create timeout controller - much more generous for small files
+  // Realistic timeout: 2.3MB should upload in 10-15 seconds max
   const controller = new AbortController()
-  const timeoutMs = Math.max(120000, (file.size / (1024 * 1024)) * 30000) // 30 seconds per MB, minimum 2 minutes
+  const timeoutMs = Math.min(30000, Math.max(15000, file.size / 1024)) // 15s minimum, 30s max, ~1s per KB
   const timeoutId = setTimeout(() => {
     controller.abort()
   }, timeoutMs)
   
-  console.log(`Upload timeout set to: ${timeoutMs}ms (${timeoutMs/1000}s)`)
+  console.log(`Upload timeout set to: ${timeoutMs}ms (${Math.round(timeoutMs/1000)}s for ${(file.size/(1024*1024)).toFixed(1)}MB)`)
 
   try {
     const response = await fetch(`${API_BASE_URL}/upload`, {
