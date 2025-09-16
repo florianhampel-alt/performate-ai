@@ -471,12 +471,12 @@ class AIVisionService:
             logger.info(f"🧪 Testing GPT-4 Vision with text-only prompt for {analysis_id}")
             
             # Test GPT-4 with a simple climbing analysis prompt (no images)
-            test_prompt = "Analyze a typical indoor climbing/bouldering scenario. Provide:
+            test_prompt = """Analyze a typical indoor climbing/bouldering scenario. Provide:
 1. A difficulty estimate (4a-7a)
 2. 3 technique insights about climbing movement
 3. 2 specific recommendations
 4. Rate overall technique 1-10
-Format as natural climbing coaching feedback."
+Format as natural climbing coaching feedback."""
             
             response = await self.client.chat.completions.create(
                 model=self.model,
