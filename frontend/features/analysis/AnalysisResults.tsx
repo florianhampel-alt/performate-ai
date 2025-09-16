@@ -369,14 +369,16 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
       <Card className="p-8 mb-8">
         <h2 className="text-2xl font-semibold mb-6">Training Recommendations</h2>
         <div className="grid md:grid-cols-2 gap-4">
-          {(analysis.unified_recommendations?.length > 0 ? (analysis.unified_recommendations || []) : 
-           analysis.route_analysis?.recommendations?.length > 0 ? (analysis.route_analysis?.recommendations || []) :
-           analysis.recommendations || [
-             "Focus on maintaining balance during dynamic movements",
-             "Practice precise foot placement on smaller holds",
-             "Improve core strength for better stability",
-             "Work on reading route sequences before climbing"
-           ]).map((recommendation, index) => (
+          {(
+            analysis.unified_recommendations?.length ? analysis.unified_recommendations : 
+            analysis.route_analysis?.recommendations?.length ? analysis.route_analysis.recommendations :
+            analysis.recommendations || [
+              "Focus on maintaining balance during dynamic movements",
+              "Practice precise foot placement on smaller holds",
+              "Improve core strength for better stability",
+              "Work on reading route sequences before climbing"
+            ]
+          ).map((recommendation, index) => (
             <div key={index} className="flex items-start space-x-3 p-3 bg-yellow-50 rounded-lg">
               <div className="text-yellow-600 font-bold text-lg flex-shrink-0 mt-0.5">•</div>
               <p className="text-gray-700">{recommendation}</p>
