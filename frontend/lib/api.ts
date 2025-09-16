@@ -65,9 +65,9 @@ export async function uploadVideo(
   formData.append('file', file)
   formData.append('sport_type', sportType)
 
-  // Realistic timeout: 2.3MB should upload in 10-15 seconds max
+  // Realistic timeout for actual internet speeds
   const controller = new AbortController()
-  const timeoutMs = Math.min(30000, Math.max(15000, file.size / 1024)) // 15s minimum, 30s max, ~1s per KB
+  const timeoutMs = Math.max(60000, (file.size / (1024 * 1024)) * 10000) // 10s per MB, minimum 60s
   const timeoutId = setTimeout(() => {
     controller.abort()
   }, timeoutMs)
