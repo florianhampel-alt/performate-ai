@@ -27,6 +27,16 @@ class AIVisionService:
         
         if self.ai_analysis_enabled:
             logger.warning(f"🗺️ AI Analysis ENABLED - Will consume tokens (~{self.max_tokens} per video)")
+            # Validate API key
+            api_key = getattr(settings, 'OPENAI_API_KEY', '')
+            if not api_key or api_key == "":
+                logger.error(f"❌ OPENAI_API_KEY not set! AI analysis will fail.")
+                self.ai_analysis_enabled = False
+            elif len(api_key) < 20:
+                logger.error(f"❌ OPENAI_API_KEY seems invalid (too short). AI analysis will fail.")
+                self.ai_analysis_enabled = False
+            else:
+                logger.info(f"✅ OPENAI_API_KEY found (length: {len(api_key)})")
         else:
             logger.info(f"💰 AI Analysis DISABLED - ZERO token consumption mode active")
         
