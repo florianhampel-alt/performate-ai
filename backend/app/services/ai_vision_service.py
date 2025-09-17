@@ -361,7 +361,8 @@ class AIVisionService:
             num_moves += hash_num - 1  # Add -1, 0, or +1 for variation
             num_moves = max(5, min(15, num_moves))  # Keep in reasonable range
             
-            logger.info(f"🎯 Generating dynamic route: {num_moves} moves (technique score: {technique_score})")
+            logger.warning(f"🎯 GENERATING DYNAMIC ROUTE: {num_moves} moves (technique score: {technique_score})")
+            logger.warning(f"🔢 Route points will be: {num_moves}, total_moves will be: {num_moves}")
             
             # Generate route points dynamically
             for i in range(num_moves):
@@ -407,11 +408,14 @@ class AIVisionService:
         # Generate difficulty estimate
         difficulty = self._estimate_difficulty(avg_score, sport_type)
         
+        final_total_moves = len(route_points)
+        logger.warning(f"🔢 FINAL total_moves in route_analysis: {final_total_moves} (route_points length: {len(route_points)})")
+        
         return {
             "route_analysis": {
                 "route_detected": True,
                 "difficulty_estimated": difficulty,
-                "total_moves": len(route_points),
+                "total_moves": final_total_moves,
                 "ideal_route": route_points,
                 "performance_segments": segments,
                 "overall_score": int(avg_score * 10),
