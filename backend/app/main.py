@@ -11,7 +11,7 @@ from fastapi.responses import Response
 from app.config.base import settings
 from app.services.redis_service import redis_service
 from app.services.s3_service import s3_service
-from app.services.video_analysis_service import video_analysis_service
+# Removed: from app.services.video_analysis_service import video_analysis_service  # Using ai_vision_service instead
 from app.utils.logger import get_logger
 
 # Import AI test router
@@ -448,22 +448,19 @@ async def complete_upload(request: dict):
         sport_detected = detect_sport_from_filename(video_info['filename'])
         
         if sport_detected in ['climbing', 'bouldering']:
-            # Use advanced video analysis service for climbing videos
-            video_analysis = await video_analysis_service.analyze_climbing_video(
+            # Use AI Vision Service for climbing videos (unified architecture)
+            from app.services.ai_vision_service import ai_vision_service
+            
+            logger.info(f"🤖 Starting unified AI analysis for {sport_detected} video")
+            video_analysis = await ai_vision_service.analyze_climbing_video(
                 video_path=video_info['s3_key'],  # Use actual S3 key for frame extraction
                 analysis_id=analysis_id,
                 sport_type=sport_detected
             )
             
-            # Create enhanced analysis result with overlay data
-            analysis_result = {
-                **create_intelligent_climbing_analysis(video_info['filename'], video_info['size'], ""),
-                "route_analysis": video_analysis.get("route_analysis", {}),
-                "overlay_data": video_analysis.get("overlay_data", {}),
-                "has_route_overlay": video_analysis.get("overlay_data", {}).get("has_overlay", False),
-                "enhanced_insights": video_analysis.get("route_analysis", {}).get("key_insights", []),
-                "difficulty_estimated": video_analysis.get("route_analysis", {}).get("difficulty_estimated", "Unknown")
-            }
+            # Use AI Vision Service result directly (no mixing with old mock data)
+            analysis_result = video_analysis
+            logger.info(f"✅ AI Vision analysis completed with confidence: {video_analysis.get('ai_confidence', 'N/A')}")
         else:
             analysis_result = create_mock_analysis(
                 video_info['filename'], 
@@ -563,28 +560,15 @@ async def get_analysis_results(analysis_id: str):
             # For demo purposes - generate a new analysis on demand when Redis is unavailable
             logger.info(f"Analysis {analysis_id} not in cache, generating new analysis")
             
-            # Use video analysis service to generate overlay data for climbing videos
-            video_analysis = await video_analysis_service.analyze_climbing_video(
+            # Use AI Vision Service directly (unified architecture)
+            from app.services.ai_vision_service import ai_vision_service
+            
+            logger.info(f"🤖 Generating new AI analysis for {analysis_id}")
+            analysis_result = await ai_vision_service.analyze_climbing_video(
                 video_path=f"/videos/{analysis_id}",
                 analysis_id=analysis_id,
                 sport_type="climbing"
             )
-            
-            # Create enhanced fallback analysis with overlay data
-            base_analysis = create_intelligent_climbing_analysis(
-                filename=f"climbing-video-{analysis_id[:6]}.mp4",
-                file_size=15000000,  # 15MB mock size
-                video_path=""
-            )
-            
-            analysis_result = {
-                **base_analysis,
-                "route_analysis": video_analysis.get("route_analysis", {}),
-                "overlay_data": video_analysis.get("overlay_data", {}),
-                "has_route_overlay": video_analysis.get("overlay_data", {}).get("has_overlay", False),
-                "enhanced_insights": video_analysis.get("route_analysis", {}).get("key_insights", []),
-                "difficulty_estimated": video_analysis.get("route_analysis", {}).get("difficulty_estimated", "Unknown")
-            }
         
         # Generate overlay data if it exists in analysis result
         overlay_data = analysis_result.get('overlay_data', {"has_overlay": False})
