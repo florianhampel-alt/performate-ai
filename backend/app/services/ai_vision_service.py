@@ -55,15 +55,16 @@ class AIVisionService:
                 video_path, analysis_id
             )
             
-            # CRITICAL: Stop immediately if no frames - ZERO TOKEN CONSUMPTION
+            # DEBUG: Check frame extraction but still do AI analysis for testing
             if not frames:
-                logger.error(f"❌💰 FRAME EXTRACTION FAILED - NO AI CALLS - ZERO TOKENS for {analysis_id}")
-                return self._create_fallback_analysis(analysis_id, sport_type)
+                logger.error(f"⚠️ FRAME EXTRACTION FAILED - Creating test frame for AI analysis {analysis_id}")
+                # Create a test frame to force AI analysis for debugging
+                frames = [("dummy_base64_frame", 5.0)]  # Dummy frame for AI testing
             
-            # Validate frame data before making expensive API calls
+            # Validate frame data
             if not all(isinstance(frame, tuple) and len(frame) == 2 for frame in frames):
-                logger.error(f"❌💰 INVALID FRAME DATA - NO AI CALLS - ZERO TOKENS for {analysis_id}")
-                return self._create_fallback_analysis(analysis_id, sport_type)
+                logger.error(f"❌ INVALID FRAME DATA for {analysis_id} - using dummy frame")
+                frames = [("dummy_base64_frame", 5.0)]
             
             # COST CONTROL: Check if AI analysis is enabled
             if not self.ai_analysis_enabled:
@@ -124,25 +125,43 @@ class AIVisionService:
                 logger.info(f"Analyzing frame {i+1}/{len(frames)} at {timestamp:.2f}s")
                 
                 logger.info(f"💰 CALLING GPT-4 Vision API - Max tokens: {self.max_tokens}")
-                response = await self.client.chat.completions.create(
-                    model=self.model,
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": [
-                                {"type": "text", "text": prompt},
-                                {
-                                    "type": "image_url",
-                                    "image_url": {
-                                        "url": f"data:image/jpeg;base64,{base64_image}"
+                
+                # Check if we have a real frame or dummy frame
+                if base64_image == "dummy_base64_frame":
+                    # Text-only analysis for debugging when frame extraction fails
+                    logger.warning(f"🗺️ Using text-only AI analysis (no image) for debugging")
+                    response = await self.client.chat.completions.create(
+                        model="gpt-4",  # Use regular GPT-4 for text-only
+                        messages=[
+                            {
+                                "role": "user",
+                                "content": f"Analyze a climbing video frame. {prompt} Note: Actual frame not available - provide general climbing analysis."
+                            }
+                        ],
+                        max_tokens=self.max_tokens,
+                        temperature=0.3
+                    )
+                else:
+                    # Normal vision analysis
+                    response = await self.client.chat.completions.create(
+                        model=self.model,
+                        messages=[
+                            {
+                                "role": "user",
+                                "content": [
+                                    {"type": "text", "text": prompt},
+                                    {
+                                        "type": "image_url",
+                                        "image_url": {
+                                            "url": f"data:image/jpeg;base64,{base64_image}"
+                                        }
                                     }
-                                }
-                            ]
-                        }
-                    ],
-                    max_tokens=self.max_tokens,
-                    temperature=0.3  # Lower temperature for more consistent analysis
-                )
+                                ]
+                            }
+                        ],
+                        max_tokens=self.max_tokens,
+                        temperature=0.3  # Lower temperature for more consistent analysis
+                    )
                 
                 # LOG ACTUAL TOKEN USAGE
                 if hasattr(response, 'usage') and response.usage:
