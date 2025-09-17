@@ -206,6 +206,9 @@ class AIVisionService:
             score_match = re.search(r'(?:score|rate|rating)[:\s]+(\d+(?:\.\d+)?)', analysis_text, re.IGNORECASE)
             technique_score = float(score_match.group(1)) if score_match else 7.0
             
+            # Extract move count from AI response
+            move_count = self._extract_move_count(analysis_text)
+            
             # Extract holds information
             holds = self._extract_holds_info(analysis_text)
             
@@ -218,6 +221,7 @@ class AIVisionService:
             return {
                 "timestamp": timestamp,
                 "technique_score": technique_score,
+                "move_count": move_count,
                 "analysis_text": analysis_text,
                 "holds": holds,
                 "insights": insights,
@@ -230,12 +234,48 @@ class AIVisionService:
             return {
                 "timestamp": timestamp,
                 "technique_score": 7.0,
+                "move_count": 8,  # Default fallback
                 "analysis_text": analysis_text,
                 "holds": [],
                 "insights": ["AI analysis completed"],
                 "coordinates": [],
                 "movement_quality": "good"
             }
+    
+    def _extract_move_count(self, text: str) -> int:
+        """Extract move count from AI analysis text"""
+        # Look for move count patterns
+        move_patterns = [
+            r'(\d+)\s*moves?',  # "8 moves" or "8 move"
+            r'total.*?(\d+)\s*moves?',  # "total 8 moves"
+            r'count.*?(\d+)',  # "count 8"
+            r'estimate.*?(\d+)\s*moves?',  # "estimate 8 moves"
+            r'about\s*(\d+)\s*moves?',  # "about 8 moves"
+            r'approximately\s*(\d+)\s*moves?',  # "approximately 8 moves"
+            r'route.*?(\d+)\s*moves?',  # "route has 8 moves"
+            r'(\d+)\s*holds?',  # "8 holds" (holds ≈ moves)
+        ]
+        
+        for pattern in move_patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                move_count = int(match.group(1))
+                # Validate reasonable range for climbing
+                if 3 <= move_count <= 25:
+                    logger.info(f"🎯 AI detected {move_count} moves from: '{match.group(0)}'")
+                    return move_count
+        
+        # Fallback: look for any number that could be moves
+        numbers = re.findall(r'\b(\d+)\b', text)
+        for num_str in numbers:
+            num = int(num_str)
+            if 4 <= num <= 20:  # Reasonable move range
+                logger.info(f"🎯 Fallback: using {num} as move count from numbers in text")
+                return num
+        
+        # Default fallback
+        logger.warning(f"⚠️ Could not extract move count from AI response, using default")
+        return 8
     
     def _extract_holds_info(self, text: str) -> List[Dict[str, Any]]:
         """Extract hold information from analysis text"""
@@ -344,25 +384,19 @@ class AIVisionService:
             timestamp = frames[0][1] if frames else 5.0
             technique_score = frame_analysis.get("technique_score", 7.0)
             
-            # Make total moves dynamic based on AI analysis and technique score
-            # Higher technique = fewer moves (more efficient), lower technique = more moves
-            if technique_score >= 8.5:
-                num_moves = 6  # Expert level - efficient route
-            elif technique_score >= 7.0:
-                num_moves = 8  # Good technique - moderate route
-            elif technique_score >= 5.5:
-                num_moves = 10  # Average technique - more moves needed
-            else:
-                num_moves = 12  # Beginner - many moves
+            # Use AI-detected move count instead of technique-based estimation
+            ai_detected_moves = frame_analysis.get("move_count", 8)
+            num_moves = max(5, min(20, ai_detected_moves))  # Keep in reasonable range
             
-            # Add some randomness based on analysis_id for variety
-            import hashlib
-            hash_num = int(hashlib.md5(analysis_id.encode()).hexdigest()[:2], 16) % 3
-            num_moves += hash_num - 1  # Add -1, 0, or +1 for variation
-            num_moves = max(5, min(15, num_moves))  # Keep in reasonable range
+            # Add some randomness based on analysis_id for variety ONLY if AI didn't detect moves
+            if ai_detected_moves == 8:  # Default fallback was used
+                import hashlib
+                hash_num = int(hashlib.md5(analysis_id.encode()).hexdigest()[:2], 16) % 3
+                num_moves += hash_num - 1  # Add -1, 0, or +1 for variation
+                num_moves = max(5, min(15, num_moves))  # Keep in reasonable range
             
-            logger.warning(f"🎯 GENERATING DYNAMIC ROUTE: {num_moves} moves (technique score: {technique_score})")
-            logger.warning(f"🔢 Route points will be: {num_moves}, total_moves will be: {num_moves}")
+            logger.warning(f"🎯 AI-DETECTED MOVES: {ai_detected_moves} -> final: {num_moves} moves (technique score: {technique_score})")
+            logger.warning(f"🔢 Route points will be generated: {num_moves}, total_moves will be: {num_moves}")
             
             # Generate route points dynamically
             for i in range(num_moves):

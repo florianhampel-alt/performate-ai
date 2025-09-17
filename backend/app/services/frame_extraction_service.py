@@ -209,13 +209,14 @@ class FrameExtractionService:
     def get_frame_analysis_prompt(self, sport_type: str = "climbing") -> str:
         """EFFICIENT prompt for useful AI insights"""
         if sport_type in ['climbing', 'bouldering']:
-            return """Analyze this climbing image: 
+            return """Analyze this climbing frame:
 1. Rate technique 1-10
-2. Identify 1-2 holds with rough positions (like "jug at center-left")
-3. Give 1 specific improvement tip
-Be concise but informative."""
+2. Count visible moves/holds used (estimate total moves in route)
+3. Identify hold types you see
+4. One specific improvement tip
+Be precise and concise."""
         else:
-            return f"Rate {sport_type} technique 1-10. Give 1 specific tip. Brief."
+            return f"Analyze {sport_type}: rate 1-10, count moves, brief tip."
 
 
 # Global service instance
