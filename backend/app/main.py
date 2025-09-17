@@ -780,9 +780,19 @@ async def upload_video(file: UploadFile = File(...)):
                             logger.info(f"✅ AI analysis completed with confidence: {video_analysis.get('ai_confidence', 'N/A')}")
                             
                         except Exception as ai_error:
-                            logger.error(f"❌ AI analysis failed: {ai_error}, using fallback")
-                            # Fallback to intelligent mock analysis
-                            analysis_result = create_intelligent_climbing_analysis(file.filename, actual_size, "")
+                            logger.error(f"❌ AI analysis failed: {ai_error}")
+                            # DO NOT override AI results - let the AI Vision Service handle fallbacks internally
+                            if 'video_analysis' not in locals() or video_analysis is None:
+                                # Only if AI Vision Service completely failed to return anything
+                                analysis_result = {
+                                    "error": "AI analysis service unavailable",
+                                    "analysis_id": analysis_id,
+                                    "sport_type": sport_detected,
+                                    "route_analysis": {"route_detected": False, "overall_score": 0},
+                                    "ai_confidence": 0.0
+                                }
+                            else:
+                                analysis_result = video_analysis
                     else:
                         analysis_result = create_mock_analysis(file.filename, sport_detected, actual_size)
                     
@@ -845,9 +855,18 @@ async def upload_video(file: UploadFile = File(...)):
                     logger.info(f"✅ AI analysis completed with confidence: {video_analysis.get('ai_confidence', 'N/A')}")
                     
                 except Exception as ai_error:
-                    logger.error(f"❌ AI analysis failed: {ai_error}, using fallback")
-                    # Fallback to intelligent mock analysis
-                    analysis_result = create_intelligent_climbing_analysis(file.filename, actual_size, "")
+                    logger.error(f"❌ AI analysis failed: {ai_error}")
+                    # DO NOT override AI results - let the AI Vision Service handle fallbacks internally
+                    if 'video_analysis' not in locals() or video_analysis is None:
+                        analysis_result = {
+                            "error": "AI analysis service unavailable",
+                            "analysis_id": analysis_id,
+                            "sport_type": sport_detected,
+                            "route_analysis": {"route_detected": False, "overall_score": 0},
+                            "ai_confidence": 0.0
+                        }
+                    else:
+                        analysis_result = video_analysis
             else:
                 analysis_result = create_mock_analysis(file.filename, sport_detected, actual_size)
             
