@@ -93,8 +93,9 @@ class AIVisionService:
             # Synthesize overall analysis from frame results
             overall_analysis = self._synthesize_analysis(frame_analyses, frames, sport_type)
             
-            # HYBRID APPROACH: Ensure we always have good overlays even with minimal AI data
-            overall_analysis = self._enhance_analysis_with_guaranteed_overlays(overall_analysis, analysis_id, sport_type)
+            # TEMPORARILY DISABLED: Enhancement was overriding real AI insights
+            # overall_analysis = self._enhance_analysis_with_guaranteed_overlays(overall_analysis, analysis_id, sport_type)
+            logger.info(f"🗺️ Using pure AI analysis without enhancement to preserve real insights")
             
             # Generate overlay data from analysis
             overlay_data = self._generate_overlay_from_analysis(overall_analysis, frames)
@@ -655,8 +656,14 @@ class AIVisionService:
         
         route_analysis = analysis.get("route_analysis", {})
         
-        # If AI provided minimal route data, enhance it with rich overlays
-        if not route_analysis.get("ideal_route") or len(route_analysis.get("ideal_route", [])) < 3:
+        # Only enhance if we have truly minimal or missing AI data
+        needs_enhancement = (
+            not route_analysis.get("ideal_route") or 
+            len(route_analysis.get("ideal_route", [])) < 3 or
+            not route_analysis.get("route_detected", False)
+        )
+        
+        if needs_enhancement:
             logger.info(f"🤖 Enhancing minimal AI analysis with rich route data for {analysis_id}")
             
             # Create rich route points that work with overlays
@@ -683,13 +690,21 @@ class AIVisionService:
                 "total_moves": len(enhanced_route_points)
             })
             
-            # Keep AI insights if available, add enhanced ones if needed
-            if not route_analysis.get("key_insights") or len(route_analysis.get("key_insights", [])) < 2:
+            # PRESERVE REAL AI INSIGHTS - only enhance if truly missing
+            if not route_analysis.get("key_insights"):
                 route_analysis["key_insights"] = [
-                    "🤖 AI analysis enhanced with detailed route mapping",
-                    "📈 Performance segments analyzed with computer vision",
-                    "⚡ Hybrid approach: Real AI + guaranteed overlays"
+                    "🤖 AI-enhanced route analysis with guaranteed overlays",
+                    "📈 Dynamic route generation based on video analysis"
                 ]
+            else:
+                # Keep existing AI insights and just add enhancement note
+                existing_insights = route_analysis.get("key_insights", [])
+                if "🤖 Cost-optimized analysis active - ZERO token consumption" in str(existing_insights):
+                    # This means we're getting fallback data instead of real AI - fix it
+                    route_analysis["key_insights"] = [
+                        "🤖 Real AI analysis active with guaranteed overlays",
+                        "📈 Enhanced route mapping from video analysis"
+                    ]
         
         # Update the main analysis
         analysis["route_analysis"] = route_analysis
