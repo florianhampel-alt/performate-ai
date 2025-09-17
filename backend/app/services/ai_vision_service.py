@@ -244,8 +244,11 @@ class AIVisionService:
     
     def _extract_move_count(self, text: str) -> int:
         """Extract move count from AI analysis text"""
-        # Look for move count patterns
+        logger.info(f"🔍 Extracting move count from AI text: '{text[:200]}...'")
+        
+        # Look for move count patterns (more comprehensive)
         move_patterns = [
+            r'total moves.*?[:\s]+(\d+)',  # "Total moves: 8" or "Total moves in route: 8"
             r'(\d+)\s*moves?',  # "8 moves" or "8 move"
             r'total.*?(\d+)\s*moves?',  # "total 8 moves"
             r'count.*?(\d+)',  # "count 8"
@@ -254,16 +257,22 @@ class AIVisionService:
             r'approximately\s*(\d+)\s*moves?',  # "approximately 8 moves"
             r'route.*?(\d+)\s*moves?',  # "route has 8 moves"
             r'(\d+)\s*holds?',  # "8 holds" (holds ≈ moves)
+            r'[:\s](\d+)\s*moves',  # ": 8 moves"
+            r'moves.*?[:\s]+(\d+)',  # "moves: 8"
         ]
         
-        for pattern in move_patterns:
+        for i, pattern in enumerate(move_patterns):
             match = re.search(pattern, text, re.IGNORECASE)
+            logger.debug(f"Pattern {i+1}: '{pattern}' -> {'MATCH' if match else 'no match'}")
             if match:
                 move_count = int(match.group(1))
+                logger.info(f"🎯 Pattern {i+1} matched: '{match.group(0)}' -> {move_count} moves")
                 # Validate reasonable range for climbing
                 if 3 <= move_count <= 25:
-                    logger.info(f"🎯 AI detected {move_count} moves from: '{match.group(0)}'")
+                    logger.warning(f"✅ AI detected {move_count} moves from: '{match.group(0)}'")
                     return move_count
+                else:
+                    logger.warning(f"❌ Move count {move_count} out of range (3-25), trying next pattern")
         
         # Fallback: look for any number that could be moves
         numbers = re.findall(r'\b(\d+)\b', text)
