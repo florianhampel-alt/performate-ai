@@ -388,10 +388,12 @@ class AIVisionService:
             ai_detected_moves = frame_analysis.get("move_count", 8)
             num_moves = max(5, min(20, ai_detected_moves))  # Keep in reasonable range
             
+            # Generate hash for route variation (always needed for route generation)
+            import hashlib
+            hash_num = int(hashlib.md5(analysis_id.encode()).hexdigest()[:2], 16) % 3
+            
             # Add some randomness based on analysis_id for variety ONLY if AI didn't detect moves
             if ai_detected_moves == 8:  # Default fallback was used
-                import hashlib
-                hash_num = int(hashlib.md5(analysis_id.encode()).hexdigest()[:2], 16) % 3
                 num_moves += hash_num - 1  # Add -1, 0, or +1 for variation
                 num_moves = max(5, min(15, num_moves))  # Keep in reasonable range
             
