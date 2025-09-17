@@ -91,7 +91,7 @@ class AIVisionService:
                 return self._create_fallback_analysis(analysis_id, sport_type)
             
             # Synthesize overall analysis from frame results
-            overall_analysis = self._synthesize_analysis(frame_analyses, frames, sport_type)
+            overall_analysis = self._synthesize_analysis(frame_analyses, frames, sport_type, analysis_id)
             
             # TEMPORARILY DISABLED: Enhancement was overriding real AI insights
             # overall_analysis = self._enhance_analysis_with_guaranteed_overlays(overall_analysis, analysis_id, sport_type)
@@ -317,7 +317,8 @@ class AIVisionService:
         self, 
         frame_analyses: List[Dict[str, Any]], 
         frames: List[Tuple[str, float]],
-        sport_type: str
+        sport_type: str,
+        analysis_id: str = "unknown"
     ) -> Dict[str, Any]:
         """Synthesize overall analysis from individual frame analyses"""
         if not frame_analyses:
