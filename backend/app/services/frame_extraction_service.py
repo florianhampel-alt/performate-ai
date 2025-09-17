@@ -207,8 +207,15 @@ class FrameExtractionService:
             return None
     
     def get_frame_analysis_prompt(self, sport_type: str = "climbing") -> str:
-        """ULTRA MINIMAL prompt for maximum token efficiency"""
-        return "Rate climbing technique 1-10. Give 1 tip. Brief."
+        """EFFICIENT prompt for useful AI insights"""
+        if sport_type in ['climbing', 'bouldering']:
+            return """Analyze this climbing image: 
+1. Rate technique 1-10
+2. Identify 1-2 holds with rough positions (like "jug at center-left")
+3. Give 1 specific improvement tip
+Be concise but informative."""
+        else:
+            return f"Rate {sport_type} technique 1-10. Give 1 specific tip. Brief."
 
 
 # Global service instance
