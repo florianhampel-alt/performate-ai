@@ -80,7 +80,7 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
       <div className="max-w-6xl mx-auto px-4 py-8">
         <div className="text-center">
           <LoadingSpinner className="mx-auto mb-4" />
-          <h2 className="text-xl font-medium">Loading analysis results...</h2>
+          <h2 className="text-xl font-medium">Lade Analyseergebnisse...</h2>
         </div>
       </div>
     )
@@ -90,7 +90,7 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
     return (
       <div className="max-w-6xl mx-auto px-4 py-8">
         <Alert variant="destructive">
-          <h3 className="font-medium">Error Loading Analysis</h3>
+          <h3 className="font-medium">Fehler beim Laden der Analyse</h3>
           <p>{error}</p>
         </Alert>
       </div>
@@ -101,8 +101,8 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
     return (
       <div className="max-w-6xl mx-auto px-4 py-8">
         <Alert>
-          <h3 className="font-medium">Analysis Not Found</h3>
-          <p>The requested analysis could not be found.</p>
+          <h3 className="font-medium">Analyse nicht gefunden</h3>
+          <p>Die angeforderte Analyse konnte nicht gefunden werden.</p>
         </Alert>
       </div>
     )
@@ -118,16 +118,16 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
       {/* Header */}
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          Analysis Results
+          Analyseergebnisse
         </h1>
         <p className="text-gray-600">
-          AI-powered analysis for your {analysis.sport_type} performance
+          KI-gestützte Analyse deiner {analysis.sport_type === 'climbing' ? 'Kletter-' : analysis.sport_type === 'bouldering' ? 'Boulder-' : ''}performance
         </p>
       </div>
 
       {/* Enhanced Video Player with Route Overlay */}
       <Card className="p-8 mb-8">
-        <h2 className="text-2xl font-semibold mb-6">Interactive Route Analysis</h2>
+        <h2 className="text-2xl font-semibold mb-6">Interaktive Routenanalyse</h2>
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Advanced Video Player with Overlays */}
           <div className="lg:col-span-2">
@@ -143,10 +143,10 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
                 <div className="text-white text-center">
                   <LoadingSpinner className="w-12 h-12 mx-auto mb-4" />
                   <p className="text-lg font-medium">
-                    {analysis?.video_url ? 'Loading enhanced video player...' : 'Video not available'}
+                    {analysis?.video_url ? 'Lade erweiterten Video-Player...' : 'Video nicht verfügbar'}
                   </p>
                   <p className="text-sm opacity-75">
-                    {analysis?.video_url ? 'Preparing route analysis overlay...' : 'Could not load video'}
+                    {analysis?.video_url ? 'Bereite Routenanalyse-Overlay vor...' : 'Konnte Video nicht laden'}
                   </p>
                 </div>
               </div>
@@ -157,16 +157,16 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
           <div className="space-y-6">
             {/* Route Overview */}
             <div>
-              <h3 className="text-lg font-medium mb-4">Route Analysis</h3>
+              <h3 className="text-lg font-medium mb-4">Routenanalyse</h3>
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-gray-50 p-3 rounded-lg">
-                  <div className="text-sm text-gray-600">Difficulty</div>
+                  <div className="text-sm text-gray-600">Schwierigkeit</div>
                   <div className="font-bold text-lg">
                     {analysis.route_analysis?.difficulty_estimated || analysis.enhanced_insights?.[0] || analysis.sport_specific_analysis?.difficulty_grade || '6a+ / V3'}
                   </div>
                 </div>
                 <div className="bg-gray-50 p-3 rounded-lg">
-                  <div className="text-sm text-gray-600">Total Moves</div>
+                  <div className="text-sm text-gray-600">Gesamtzüge</div>
                   <div className="font-bold text-lg">
                     {analysis.route_analysis?.total_moves || analysis.route_analysis?.ideal_route?.length || 12}
                   </div>
@@ -176,18 +176,19 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
             
             {/* Performance Timeline */}
             <div>
-              <h4 className="text-md font-medium mb-3">Performance Timeline</h4>
+              <h4 className="text-md font-medium mb-3">Performance-Verlauf</h4>
               <div className="space-y-2">
                 {analysis.route_analysis?.performance_segments?.map((segment, index) => {
                   const score = Math.round(segment.score * 100)
                   const startTime = Math.floor(segment.time_start / 60) + ':' + String(Math.floor(segment.time_start % 60)).padStart(2, '0')
                   const endTime = Math.floor(segment.time_end / 60) + ':' + String(Math.floor(segment.time_end % 60)).padStart(2, '0')
                   const colorClass = score >= 80 ? 'bg-green-500' : score >= 65 ? 'bg-orange-400' : 'bg-red-500'
-                  const status = score >= 80 ? 'Excellent' : score >= 65 ? 'Good' : 'Needs Work'
+                  const status = score >= 80 ? 'Ausgezeichnet' : score >= 65 ? 'Gut' : 'Verbesserung nötig'
                   const description = segment.issue ? 
-                    (segment.issue === 'technique_needs_work' ? 'Technique needs improvement' : 
-                     segment.issue === 'efficiency_low' ? 'Energy efficiency low' :
-                     segment.issue) : 'Smooth execution'
+                    (segment.issue === 'technique_needs_work' ? 'Technik verbesserungswürdig' : 
+                     segment.issue === 'efficiency_low' ? 'Energieeffizienz niedrig' :
+                     segment.issue === 'technique_improvement_needed' ? 'Technik verbesserungswürdig' :
+                     segment.issue) : 'Flüssige Ausführung'
                   
                   return (
                     <div key={index} className="flex items-center space-x-3">
@@ -205,7 +206,7 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
                 }) || (
                   // Fallback for when no performance segments available
                   <div className="text-sm text-gray-500 italic">
-                    Performance timeline data not available
+                    Performance-Verlaufsdaten nicht verfügbar
                   </div>
                 )}
               </div>
@@ -213,7 +214,7 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
             
             {/* Key Holds */}
             <div>
-              <h4 className="text-md font-medium mb-3">Key Holds Analysis</h4>
+              <h4 className="text-md font-medium mb-3">Schlüsselgriff-Analyse</h4>
               <div className="space-y-2 text-sm">
                 {analysis.route_analysis?.ideal_route?.map((hold, index) => {
                   // Get corresponding performance score for this hold
@@ -222,14 +223,14 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
                   ) ?? -1
                   const score = segmentIndex >= 0 ? analysis.route_analysis?.performance_segments?.[segmentIndex]?.score ?? 0.8 : 0.8
                   const colorClass = score >= 0.8 ? 'bg-green-500' : score >= 0.65 ? 'bg-orange-400' : 'bg-red-500'
-                  const quality = score >= 0.8 ? 'Excellent grip' : score >= 0.65 ? 'Good hold' : 'Challenging'
+                  const quality = score >= 0.8 ? 'Ausgezeichneter Griff' : score >= 0.65 ? 'Guter Griff' : 'Herausfordernd'
                   const timeStr = Math.floor(hold.time / 60) + ':' + String(Math.floor(hold.time % 60)).padStart(2, '0')
                   
                   return (
                     <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
                       <span className="capitalize">
-                        {hold.hold_type === 'start' ? 'Start Hold' : 
-                         hold.hold_type === 'finish' ? 'Finish Hold' :
+                        {hold.hold_type === 'start' ? 'Startgriff' : 
+                         hold.hold_type === 'finish' ? 'Zielgriff' :
                          `${hold.hold_type} (${timeStr})`}
                       </span>
                       <div className="flex items-center">
@@ -241,7 +242,7 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
                 }) || (
                   // Fallback when no route data available
                   <div className="text-sm text-gray-500 italic">
-                    Hold analysis data not available
+                    Griff-Analysedaten nicht verfügbar
                   </div>
                 )}
               </div>
@@ -249,17 +250,17 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
             
             {/* AI Coaching Tips */}
             <div className="p-4 bg-blue-50 rounded-lg">
-              <h4 className="font-medium text-blue-900 mb-2">💡 AI Coaching Tips</h4>
+              <h4 className="font-medium text-blue-900 mb-2">💡 KI-Coaching-Tipps</h4>
               <ul className="text-sm text-blue-800 space-y-1">
                 {analysis.route_analysis?.recommendations?.map((tip, index) => (
                   <li key={index}>• {tip}</li>
                 )) || analysis.unified_recommendations?.slice(0, 4).map((tip, index) => (
                   <li key={index}>• {tip}</li>
                 )) || [
-                  'Focus on static movements to save energy',
-                  'Improve foot placement during difficult moves',
-                  'Plan movement sequences before climbing',
-                  'Strengthen core for better body tension'
+                  'Übe statische Bewegungen um Energie zu sparen',
+                  'Verbessere Fußplatzierung während schwieriger Züge',
+                  'Plane Bewegungssequenzen vor dem Klettern',
+                  'Stärke den Core für bessere Körperspannung'
                 ].map((tip, index) => (
                   <li key={index}>• {tip}</li>
                 ))}
@@ -271,7 +272,7 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
 
       {/* Overall Score */}
       <Card className="p-8 mb-8 text-center">
-        <h2 className="text-2xl font-semibold mb-4">Overall Performance Score</h2>
+        <h2 className="text-2xl font-semibold mb-4">Gesamt-Performance-Score</h2>
         <div className="flex justify-center items-center mb-4">
           <div className="relative w-32 h-32">
             <Progress 
@@ -292,9 +293,9 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
           </div>
         </div>
         <p className="text-gray-600">
-          {overallScore >= 80 ? 'Excellent' : 
-           overallScore >= 60 ? 'Good' : 
-           overallScore >= 40 ? 'Needs Improvement' : 'Beginner'}
+          {overallScore >= 80 ? 'Ausgezeichnet' : 
+           overallScore >= 60 ? 'Gut' : 
+           overallScore >= 40 ? 'Verbesserung nötig' : 'Anfänger'}
         </p>
       </Card>
 
@@ -318,7 +319,7 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
           <Card key={index} className="p-6">
             <div className="flex items-start justify-between mb-2">
               <h3 className="font-semibold text-gray-900">
-                AI Insight #{index + 1}
+                KI-Erkenntnis #{index + 1}
               </h3>
               <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
                 AI
@@ -330,18 +331,18 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
           </Card>
         )) || [
           {
-            title: "Route Recognition",
-            message: analysis.route_analysis?.route_detected ? "Route successfully identified by AI" : "Route detection in progress",
+            title: "Routenerkennung",
+            message: analysis.route_analysis?.route_detected ? "Route erfolgreich von KI identifiziert" : "Routenerkennung in Bearbeitung",
             priority: "high"
           },
           {
             title: "Performance Score",
-            message: `Overall technique rated ${analysis.route_analysis?.overall_score || 78}% by AI analysis`,
+            message: `Gesamttechnik von KI mit ${analysis.route_analysis?.overall_score || 78}% bewertet`,
             priority: "medium"
           },
           {
-            title: "AI Confidence",
-            message: `Analysis confidence: ${Math.round((analysis.ai_confidence || 0.85) * 100)}%`,
+            title: "KI-Vertrauen",
+            message: `Analysegenauigkeit: ${Math.round((analysis.ai_confidence || 0.85) * 100)}%`,
             priority: (analysis.ai_confidence || 0.85) > 0.7 ? "high" : "medium"
           }
         ].map((insight, index) => (
@@ -367,16 +368,16 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
 
       {/* Recommendations */}
       <Card className="p-8 mb-8">
-        <h2 className="text-2xl font-semibold mb-6">Training Recommendations</h2>
+        <h2 className="text-2xl font-semibold mb-6">Trainingsempfehlungen</h2>
         <div className="grid md:grid-cols-2 gap-4">
           {(
             analysis.unified_recommendations?.length ? analysis.unified_recommendations : 
             analysis.route_analysis?.recommendations?.length ? analysis.route_analysis.recommendations :
             analysis.recommendations || [
-              "Focus on maintaining balance during dynamic movements",
-              "Practice precise foot placement on smaller holds",
-              "Improve core strength for better stability",
-              "Work on reading route sequences before climbing"
+              "Fokussiere dich auf Balance während dynamischer Bewegungen",
+              "Trainiere präzise Fußplatzierung auf kleineren Griffen",
+              "Verbessere Rumpfkraft für bessere Stabilität",
+              "Arbeite daran, Routensequenzen vor dem Klettern zu lesen"
             ]
           ).map((recommendation, index) => (
             <div key={index} className="flex items-start space-x-3 p-3 bg-yellow-50 rounded-lg">
@@ -391,18 +392,21 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
       {analysis.sport_specific_analysis && (
         <Card className="p-8 mb-8">
           <h2 className="text-2xl font-semibold mb-6">
-            {analysis.sport_type} Specific Analysis
+            {analysis.sport_type === 'climbing' ? 'Kletter-' : analysis.sport_type === 'bouldering' ? 'Boulder-' : analysis.sport_type}spezifische Analyse
           </h2>
           
           {/* Key Metrics */}
           {analysis.sport_specific_analysis.key_metrics && (
             <div className="mb-6">
-              <h3 className="text-lg font-medium mb-4">Key Performance Metrics</h3>
+              <h3 className="text-lg font-medium mb-4">Wichtige Performance-Metriken</h3>
               <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {Object.entries(analysis.sport_specific_analysis.key_metrics).map(([metric, data]) => (
                   <div key={metric} className="metric-card">
                     <h4 className="font-medium text-gray-900 capitalize mb-2">
-                      {metric.replace('_', ' ')}
+                      {metric === 'balance' ? 'balance' : 
+                       metric === 'efficiency' ? 'effizienz' : 
+                       metric === 'technique' ? 'technik' : 
+                       metric.replace('_', ' ')}
                     </h4>
                     <div className="flex items-center">
                       <div className={`w-3 h-3 rounded-full mr-2 ${
@@ -410,8 +414,11 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
                         data.status === 'needs_improvement' ? 'bg-yellow-500' : 
                         'bg-gray-400'
                       }`} />
-                      <span className="text-sm text-gray-600 capitalize">
-                        {data.status?.replace('_', ' ') || 'Not analyzed'}
+                      <span className="text-sm text-gray-600">
+                        {data.status === 'good' ? 'gut' : 
+                         data.status === 'needs_improvement' ? 'verbesserung nötig' : 
+                         data.status === 'needs improvement' ? 'verbesserung nötig' : 
+                         data.status || 'nicht analysiert'}
                       </span>
                     </div>
                   </div>
@@ -423,7 +430,7 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
           {/* Safety Considerations */}
           {analysis.sport_specific_analysis.safety_considerations && (
             <div>
-              <h3 className="text-lg font-medium mb-4">Safety Considerations</h3>
+              <h3 className="text-lg font-medium mb-4">Sicherheitshinweise</h3>
               <ul className="space-y-2">
                 {analysis.sport_specific_analysis.safety_considerations.map((tip, index) => (
                   <li key={index} className="flex items-start">
@@ -439,19 +446,19 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
 
       {/* Analysis Summary */}
       <Card className="p-8">
-        <h2 className="text-2xl font-semibold mb-4">Analysis Summary</h2>
+        <h2 className="text-2xl font-semibold mb-4">Analyse-Übersicht</h2>
         <div className="grid md:grid-cols-4 gap-6">
           <div className="text-center">
             <div className="text-2xl font-bold text-blue-600">
               {analysis.analysis_summary?.analyzers_used || 'GPT-4o'}
             </div>
-            <div className="text-sm text-gray-600">AI Model Used</div>
+            <div className="text-sm text-gray-600">KI-Modell verwendet</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-green-600">
               {analysis.analysis_summary?.total_insights || analysis.route_analysis?.key_insights?.length || 3}
             </div>
-            <div className="text-sm text-gray-600">Insights Generated</div>
+            <div className="text-sm text-gray-600">Erkenntnisse generiert</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-orange-600">
@@ -459,7 +466,7 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
                analysis.route_analysis?.recommendations?.length || 
                analysis.recommendations?.length || 4}
             </div>
-            <div className="text-sm text-gray-600">Recommendations</div>
+            <div className="text-sm text-gray-600">Empfehlungen</div>
           </div>
           <div className="text-center">
             <div className={`text-2xl font-bold ${
@@ -468,7 +475,7 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
             }`}>
               {Math.round((analysis.ai_confidence || 0.85) * 100)}%
             </div>
-            <div className="text-sm text-gray-600">AI Confidence</div>
+            <div className="text-sm text-gray-600">KI-Vertrauen</div>
           </div>
         </div>
       </Card>
@@ -476,13 +483,13 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
       {/* Actions */}
       <div className="mt-8 flex justify-center space-x-4">
         <Button onClick={() => window.print()}>
-          Download Report
+          Report herunterladen
         </Button>
         <Button variant="outline" onClick={() => window.location.href = '/upload'}>
-          Analyze Another Video
+          Weiteres Video analysieren
         </Button>
         <Button variant="outline" onClick={() => window.history.back()}>
-          Back to Upload
+          Zurück zum Upload
         </Button>
       </div>
     </div>
