@@ -275,6 +275,43 @@ async def debug_s3():
         "secret_key_length": len(settings.AWS_SECRET_ACCESS_KEY) if settings.AWS_SECRET_ACCESS_KEY else 0
     }
 
+@app.post("/debug/clear-cache")
+async def clear_all_cache():
+    """Clear all caches for testing - use with caution"""
+    try:
+        cleared_count = 0
+        
+        # Clear Redis cache patterns
+        try:
+            # Get all analysis keys
+            keys = await redis_service.get_all_keys()
+            analysis_keys = [key for key in keys if key.startswith('analysis:')]
+            
+            for key in analysis_keys:
+                await redis_service.delete(key)
+                cleared_count += 1
+                
+            logger.warning(f"🖾 CACHE CLEARED: Removed {cleared_count} analysis entries from Redis")
+        except Exception as redis_err:
+            logger.warning(f"Redis cache clear failed: {redis_err}")
+        
+        # Clear memory storage 
+        memory_cleared = len(video_storage)
+        video_storage.clear()
+        logger.warning(f"🖾 MEMORY CLEARED: Removed {memory_cleared} video entries from memory")
+        
+        return {
+            "success": True,
+            "redis_keys_cleared": cleared_count,
+            "memory_entries_cleared": memory_cleared,
+            "message": "All caches cleared successfully",
+            "warning": "This will cause regeneration of all analyses on next request"
+        }
+        
+    except Exception as e:
+        logger.error(f"Cache clear failed: {str(e)}")
+        return {"success": False, "error": str(e)}
+
 @app.get("/debug/videos")
 async def debug_videos():
     """Debug endpoint to list all stored videos"""

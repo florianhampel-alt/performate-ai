@@ -122,6 +122,20 @@ class RedisService:
         """Get cached analysis result"""
         cache_key = f"analysis:{analysis_id}"
         return await self.get_json(cache_key)
+    
+    async def get_all_keys(self, pattern: str = "*") -> List[str]:
+        """Get all keys matching pattern"""
+        try:
+            if self.is_upstash:
+                # Upstash Redis doesn't support KEYS in the same way
+                # Return empty list for now - could implement scan
+                return []
+            else:
+                keys = self.redis_client.keys(pattern)
+                return keys if isinstance(keys, list) else list(keys)
+        except Exception as e:
+            logger.error(f"Redis KEYS failed for pattern {pattern}: {str(e)}")
+            return []
 
 
 redis_service = RedisService()
