@@ -114,6 +114,48 @@ async def test_ai_simple():
             "error": str(e)
         }
 
+@app.post("/debug/test-moves")
+async def test_move_extraction():
+    """Debug endpoint to test move count extraction with fresh AI analysis"""
+    try:
+        from app.services.ai_vision_service import ai_vision_service
+        import uuid
+        
+        # Create a test analysis ID
+        test_id = f"movetest_{uuid.uuid4().hex[:8]}"
+        
+        logger.warning(f"🔧 MOVE DEBUG: Starting test for {test_id}")
+        
+        # Test the AI analysis with dummy data to force AI call
+        result = await ai_vision_service.analyze_climbing_video(
+            video_path="dummy_for_move_test",
+            analysis_id=test_id,
+            sport_type="bouldering"
+        )
+        
+        # Extract the key data we need
+        route_analysis = result.get('route_analysis', {})
+        total_moves = route_analysis.get('total_moves')
+        ideal_route = route_analysis.get('ideal_route', [])
+        
+        logger.warning(f"🔧 MOVE DEBUG: Result - total_moves: {total_moves}, route_points: {len(ideal_route)}")
+        
+        return {
+            "test_id": test_id,
+            "ai_enabled": ai_vision_service.ai_analysis_enabled,
+            "total_moves": total_moves,
+            "route_points_count": len(ideal_route),
+            "performance_score": result.get('performance_score'),
+            "key_insights": route_analysis.get('key_insights', []),
+            "debug_message": "Check Render logs for detailed AI response and move extraction logs"
+        }
+        
+    except Exception as e:
+        logger.error(f"🔧 MOVE DEBUG: Test failed - {str(e)}")
+        import traceback
+        logger.error(f"🔧 MOVE DEBUG: Traceback - {traceback.format_exc()}")
+        return {"error": str(e)}
+
 @app.get("/debug/force-ai/{analysis_id}")
 async def force_ai_analysis(analysis_id: str):
     """Force AI analysis for a specific video"""
