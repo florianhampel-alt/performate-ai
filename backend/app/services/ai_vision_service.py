@@ -248,9 +248,17 @@ class AIVisionService:
         """Extract move count from AI analysis text"""
         logger.info(f"🔍 Extracting move count from AI text: '{text[:200]}...'")
         
-        # Look for move count patterns (more comprehensive)
+        # Look for move count patterns (German + English)
         move_patterns = [
-            r'total moves.*?[:\s]+(\d+)',  # "Total moves: 8" or "Total moves in route: 8"
+            # German patterns
+            r'gesamtzahl züge.*?[:\s]+(\d+)',  # "GESAMTZAHL ZÜGE IN DER ROUTE: 8"
+            r'(\d+)\s*züge?',  # "8 Züge" or "8 Zug"
+            r'züge.*?[:\s]+(\d+)',  # "Züge: 8"
+            r'gesamt.*?(\d+)\s*züge?',  # "gesamt 8 Züge"
+            r'route.*?(\d+)\s*züge?',  # "route hat 8 Züge"
+            r'(\d+)\s*griffe?',  # "8 Griffe" (griffe ≈ moves)
+            # English patterns (fallback)
+            r'total moves.*?[:\s]+(\d+)',  # "Total moves: 8"
             r'(\d+)\s*moves?',  # "8 moves" or "8 move"
             r'total.*?(\d+)\s*moves?',  # "total 8 moves"
             r'count.*?(\d+)',  # "count 8"
@@ -514,13 +522,13 @@ class AIVisionService:
         low_scores = [fa for fa in frame_analyses if fa.get("technique_score", 7) < 7]
         
         if len(low_scores) > len(frame_analyses) * 0.3:  # More than 30% of frames need work
-            recommendations.append("Focus on fundamental climbing technique and body positioning")
+            recommendations.append("Konzentriere dich auf grundlegende Klettertechnik und Körperposition")
         
         recommendations.extend([
-            "Practice static movements to improve efficiency",
-            "Work on precise foot placement and balance",
-            "Strengthen core muscles for better body tension",
-            "Plan route sequences before starting the climb"
+            "Übe statische Bewegungen für mehr Effizienz",
+            "Arbeite an präziser Fußplatzierung und Balance",
+            "Stärke deine Rumpfmuskulatur für bessere Körperspannung",
+            "Plane Routensequenzen vor dem Start des Kletterns"
         ])
         
         return recommendations[:4]  # Limit to 4 recommendations
@@ -662,14 +670,14 @@ class AIVisionService:
                 "performance_segments": segments,
                 "overall_score": 72,
                 "key_insights": [
-                    "🤖 Real AI analysis completed successfully",
-                    "📈 Route progression analyzed with AI vision",
-                    "⚡ GPT-4 Vision insights generated"
+                    "🤖 KI-Analyse erfolgreich abgeschlossen",
+                    "📈 Routenverlauf mit KI-Vision analysiert",
+                    "⚡ GPT-4 Vision Erkenntnisse generiert"
                 ],
                 "recommendations": [
-                    "Focus on smooth transitions between holds",
-                    "Work on body positioning and balance",
-                    "Practice static movements for efficiency"
+                    "Fokussiere dich auf flüssige Übergänge zwischen den Griffen",
+                    "Arbeite an Körperposition und Balance",
+                    "Übe statische Bewegungen für mehr Effizienz"
                 ]
             },
             "overlay_data": {
@@ -683,8 +691,8 @@ class AIVisionService:
             "analysis_timestamp": datetime.now().isoformat(),
             "performance_score": 72,
             "recommendations": [
-                "AI analysis: Focus on movement efficiency",
-                "Route analysis: Practice dynamic positioning"
+                "KI-Analyse: Fokus auf Bewegungseffizienz",
+                "Routenanalyse: Übe dynamische Positionierung"
             ],
             "ai_confidence": 0.6  # Reasonable confidence for estimated analysis
         }

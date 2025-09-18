@@ -209,20 +209,20 @@ class FrameExtractionService:
     def get_frame_analysis_prompt(self, sport_type: str = "climbing") -> str:
         """ULTRA EXPLICIT prompt for move counting"""
         if sport_type in ['climbing', 'bouldering']:
-            return """Analyze this climbing/bouldering image. MUST answer with exact numbers:
+            return """Analysiere dieses Kletter-/Boulderbild. MUSS mit exakten Zahlen antworten:
 
-1. Technique score: [give a number 1-10]
-2. TOTAL MOVES IN ROUTE: [count every single hold from bottom to top - give exact number like "8 moves" or "12 moves"]
-3. Hold analysis: [describe key holds visible]
-4. Movement tip: [one specific improvement]
+1. Technik-Bewertung: [Zahl von 1-10]
+2. GESAMTZAHL ZÜGE IN DER ROUTE: [zähle jeden einzelnen Griff von unten nach oben - gib exakte Zahl wie "8 Züge" oder "12 Züge"]
+3. Griff-Analyse: [beschreibe die wichtigsten sichtbaren Griffe]
+4. Bewegungstipp: [eine spezifische Verbesserung]
 
-EXAMPLE RESPONSE:
-1. Technique score: 7/10
-2. TOTAL MOVES IN ROUTE: 11 moves
-3. Hold analysis: Mix of jugs and crimps
-4. Movement tip: Better hip positioning
+BEISPIEL ANTWORT:
+1. Technik-Bewertung: 7/10
+2. GESAMTZAHL ZÜGE IN DER ROUTE: 11 Züge
+3. Griff-Analyse: Mischung aus Henkeln und Leisten
+4. Bewegungstipp: Bessere Hüftpositionierung
 
-Your response:"""
+Deine Antwort:"""
         else:
             return f"Analyze {sport_type}: rate 1-10, count total moves as number, brief tip."
 
