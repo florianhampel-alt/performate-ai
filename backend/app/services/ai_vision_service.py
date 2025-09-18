@@ -78,8 +78,8 @@ class AIVisionService:
             
             # COST CONTROL: Check if AI analysis is enabled
             if not self.ai_analysis_enabled:
-                logger.info(f"💰 AI Analysis DISABLED for cost control - using zero-token fallback")
-                return self._create_fallback_analysis(analysis_id, sport_type)
+                logger.error(f"❌ AI Analysis DISABLED - Cannot provide real analysis data")
+                raise Exception("AI Analysis is disabled. Enable ENABLE_AI_ANALYSIS=true for real data.")
             
             logger.info(f"Analyzing {len(frames)} frames with GPT-4 Vision (AI ENABLED)")
             
@@ -87,8 +87,8 @@ class AIVisionService:
             frame_analyses = await self._analyze_frames(frames, sport_type)
             
             if not frame_analyses:
-                logger.warning(f"No frame analyses for {analysis_id}, using fallback")
-                return self._create_fallback_analysis(analysis_id, sport_type)
+                logger.error(f"❌ No frame analyses generated for {analysis_id}")
+                raise Exception(f"Frame analysis failed for {analysis_id}. Cannot provide real data.")
             
             # Synthesize overall analysis from frame results
             overall_analysis = self._synthesize_analysis(frame_analyses, frames, sport_type, analysis_id)
@@ -118,8 +118,8 @@ class AIVisionService:
             return result
             
         except Exception as e:
-            logger.error(f"AI vision analysis failed for {analysis_id}: {str(e)}")
-            return self._create_fallback_analysis(analysis_id, sport_type)
+            logger.error(f"❌ AI vision analysis completely failed for {analysis_id}: {str(e)}")
+            raise Exception(f"AI analysis failed for {analysis_id}: {str(e)}")
     
     async def _analyze_frames(
         self, 
@@ -467,7 +467,7 @@ class AIVisionService:
     ) -> Dict[str, Any]:
         """Synthesize overall analysis from individual frame analyses"""
         if not frame_analyses:
-            return self._create_fallback_synthesis(sport_type)
+            raise Exception("No frame analyses available for synthesis - cannot generate real data")
         
         # Calculate average scores
         technique_scores = [fa.get("technique_score", 7) for fa in frame_analyses]

@@ -471,6 +471,45 @@ async def force_ai_analysis(analysis_id: str):
             "traceback": error_details
         }
 
+@app.get("/debug/ai-response-text")
+async def debug_ai_response():
+    """Debug AI response text to see what the AI actually returns"""
+    try:
+        from app.services.ai_vision_service import ai_vision_service
+        import uuid
+        
+        # Create test ID
+        test_id = f"response_debug_{uuid.uuid4().hex[:8]}"
+        
+        logger.warning(f"🔍 AI RESPONSE DEBUG: Starting test for {test_id}")
+        
+        # Manually call AI analysis to capture the raw response
+        result = await ai_vision_service.analyze_climbing_video(
+            video_path="debug_test_video",
+            analysis_id=test_id,
+            sport_type="bouldering"
+        )
+        
+        # Try to extract raw analysis text from the result
+        route_analysis = result.get('route_analysis', {})
+        total_moves = route_analysis.get('total_moves')
+        
+        return {
+            "test_id": test_id,
+            "ai_enabled": ai_vision_service.ai_analysis_enabled,
+            "total_moves_extracted": total_moves,
+            "performance_score": result.get('performance_score'),
+            "full_result_keys": list(result.keys()),
+            "route_analysis_keys": list(route_analysis.keys()),
+            "debug_message": "Check Render logs for raw AI response text patterns",
+            "extraction_status": "successful" if total_moves and total_moves != 8 else "fallback_used"
+        }
+        
+    except Exception as e:
+        logger.error(f"🔍 AI RESPONSE DEBUG failed: {str(e)}")
+        import traceback
+        return {"error": str(e), "traceback": traceback.format_exc()}
+
 @app.get("/debug/s3")
 async def debug_s3():
     """Debug S3 configuration"""
@@ -807,8 +846,9 @@ async def complete_upload(request: dict):
             from app.services.ai_vision_service import ai_vision_service
             
             logger.info(f"🤖 Starting unified AI analysis for {sport_detected} video")
+            # Pass S3 key - the ai_vision_service will handle S3 download internally
             video_analysis = await ai_vision_service.analyze_climbing_video(
-                video_path=video_info['s3_key'],  # Use actual S3 key for frame extraction
+                video_path=video_info['s3_key'],  # S3 key - service handles download
                 analysis_id=analysis_id,
                 sport_type=sport_detected
             )
