@@ -47,7 +47,14 @@ class FrameExtractionService:
             
             if not temp_video_path:
                 logger.error(f"Could not get video file for {analysis_id}")
-                return []
+                return {
+                    'frames': [],
+                    'video_duration': 0,
+                    'total_frames': 0,
+                    'fps': 0,
+                    'success': False,
+                    'error': 'Could not get video file'
+                }
             
             # Extract frames using OpenCV
             frames = self._extract_frames_opencv(temp_video_path)
@@ -59,12 +66,26 @@ class FrameExtractionService:
                 except:
                     pass
                     
-            logger.info(f"Extracted {len(frames)} frames for {analysis_id}")
-            return frames
+            logger.warning(f"🎥 EXTRACTION COMPLETE: {len(frames)} frames from {duration:.1f}s video")
+            # Return frames with metadata including real video duration
+            return {
+                'frames': frames,  # List of (base64_image, timestamp) tuples
+                'video_duration': duration,
+                'total_frames': total_frames,
+                'fps': fps,
+                'success': len(frames) > 0
+            }
             
         except Exception as e:
             logger.error(f"Frame extraction failed for {analysis_id}: {str(e)}")
-            return []
+            return {
+                'frames': [],
+                'video_duration': 0,
+                'total_frames': 0,
+                'fps': 0,
+                'success': False,
+                'error': str(e)
+            }
     
     async def _get_video_file(self, video_path: str, analysis_id: str) -> Optional[str]:
         """Get video file path (download from S3 if needed)"""
@@ -120,10 +141,12 @@ class FrameExtractionService:
             fps = cap.get(cv2.CAP_PROP_FPS)
             duration = total_frames / fps if fps > 0 else 0
             
-            logger.info(f"Video stats: {total_frames} frames, {fps:.2f} FPS, {duration:.1f}s")
+            logger.warning(f"🎥 VIDEO ANALYSIS: {total_frames} frames, {fps:.2f} FPS, {duration:.1f}s duration")
+            logger.warning(f"🎥 VIDEO SIZE: {os.path.getsize(video_path)/(1024*1024):.1f}MB")
             
             # Calculate frame indices to extract
             frame_indices = self._calculate_frame_indices(total_frames, duration)
+            logger.warning(f"🎥 FRAME EXTRACTION: Will extract {len(frame_indices)} frames from {duration:.1f}s video")
             
             # Extract frames
             for frame_idx in frame_indices:
@@ -137,7 +160,7 @@ class FrameExtractionService:
                     base64_image = self._process_frame(frame)
                     if base64_image:
                         frames.append((base64_image, timestamp))
-                        logger.debug(f"Extracted frame at {timestamp:.2f}s")
+                        logger.warning(f"✅ FRAME EXTRACTED: {len(frames)}/{len(frame_indices)} at {timestamp:.2f}s (frame {frame_idx}/{total_frames})")
                 
             cap.release()
             

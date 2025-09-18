@@ -61,20 +61,37 @@ class AIVisionService:
             logger.info(f"Starting AI vision analysis for {analysis_id}")
             
             # Extract key frames from video
-            frames = await frame_extraction_service.extract_frames_from_video(
+            extraction_result = await frame_extraction_service.extract_frames_from_video(
                 video_path, analysis_id
             )
             
-            # DEBUG: Check frame extraction but still do AI analysis for testing
-            if not frames:
-                logger.error(f"⚠️ FRAME EXTRACTION FAILED - Creating test frame for AI analysis {analysis_id}")
-                # Create a test frame to force AI analysis for debugging
-                frames = [("dummy_base64_frame", 5.0)]  # Dummy frame for AI testing
+            # Handle new frame extraction format
+            if isinstance(extraction_result, dict):
+                frames = extraction_result.get('frames', [])
+                video_duration = extraction_result.get('video_duration', 0)
+                total_frames = extraction_result.get('total_frames', 0)
+                fps = extraction_result.get('fps', 24)
+                extraction_success = extraction_result.get('success', False)
+                
+                logger.warning(f"🎥 EXTRACTION RESULT: {len(frames)} frames from {video_duration:.1f}s video ({total_frames} total frames, {fps:.1f} FPS)")
+            else:
+                # Fallback for old format (list of tuples)
+                frames = extraction_result if extraction_result else []
+                video_duration = max([f[1] for f in frames]) if frames else 0
+                total_frames = 0
+                fps = 24
+                extraction_success = len(frames) > 0
+                logger.warning(f"🚨 USING OLD EXTRACTION FORMAT")
+            
+            # Check frame extraction success
+            if not extraction_success or not frames:
+                logger.error(f"❌ FRAME EXTRACTION FAILED for {analysis_id}")
+                raise Exception(f"Frame extraction failed for {analysis_id}. Video duration: {video_duration}s")
             
             # Validate frame data
             if not all(isinstance(frame, tuple) and len(frame) == 2 for frame in frames):
-                logger.error(f"❌ INVALID FRAME DATA for {analysis_id} - using dummy frame")
-                frames = [("dummy_base64_frame", 5.0)]
+                logger.error(f"❌ INVALID FRAME DATA for {analysis_id}")
+                raise Exception(f"Invalid frame data format for {analysis_id}")
             
             # COST CONTROL: Check if AI analysis is enabled
             if not self.ai_analysis_enabled:
@@ -90,15 +107,17 @@ class AIVisionService:
                 logger.error(f"❌ No frame analyses generated for {analysis_id}")
                 raise Exception(f"Frame analysis failed for {analysis_id}. Cannot provide real data.")
             
-            # Synthesize overall analysis from frame results
-            overall_analysis = self._synthesize_analysis(frame_analyses, frames, sport_type, analysis_id)
+            # Synthesize overall analysis from frame results with real video duration
+            overall_analysis = self._synthesize_analysis(
+                frame_analyses, frames, sport_type, analysis_id, video_duration
+            )
             
             # TEMPORARILY DISABLED: Enhancement was overriding real AI insights
             # overall_analysis = self._enhance_analysis_with_guaranteed_overlays(overall_analysis, analysis_id, sport_type)
             logger.info(f"🗺️ Using pure AI analysis without enhancement to preserve real insights")
             
-            # Generate overlay data from analysis
-            overlay_data = self._generate_overlay_from_analysis(overall_analysis, frames)
+            # Generate overlay data from analysis with real video duration
+            overlay_data = self._generate_overlay_from_analysis(overall_analysis, frames, video_duration)
             
             # Combine everything into final result
             result = {
@@ -463,7 +482,8 @@ class AIVisionService:
         frame_analyses: List[Dict[str, Any]], 
         frames: List[Tuple[str, float]],
         sport_type: str,
-        analysis_id: str = "unknown"
+        analysis_id: str = "unknown",
+        video_duration: float = 0
     ) -> Dict[str, Any]:
         """Synthesize overall analysis from individual frame analyses"""
         if not frame_analyses:
@@ -538,10 +558,11 @@ class AIVisionService:
                     "source": "ai_enhanced"
                 })
         
-        # Create performance segments based on all analyzed frames
+        # Create performance segments based on all analyzed frames using real video duration
         segments = []
         if frame_analyses and frames:
-            total_duration = max([frame[1] for frame in frames]) if frames else 10.0
+            real_total_duration = video_duration if video_duration > 0 else (max([frame[1] for frame in frames]) if frames else 10.0)
+            logger.warning(f"🎥 SEGMENTS: Using {real_total_duration:.1f}s duration for performance segments (video_duration={video_duration})")
             
             # If we have multiple frames, create segments between them
             if len(frame_analyses) > 1:
@@ -549,17 +570,17 @@ class AIVisionService:
                     timestamp = frame_data[1]
                     score = frame_analysis["technique_score"] / 10
                     
-                    # Calculate segment boundaries
+                    # Calculate segment boundaries using real video duration
                     if i == 0:
                         # First segment: from start to midpoint between first and second frame
-                        next_timestamp = frames[i + 1][1] if i + 1 < len(frames) else total_duration
+                        next_timestamp = frames[i + 1][1] if i + 1 < len(frames) else real_total_duration
                         time_start = 0.0
                         time_end = (timestamp + next_timestamp) / 2
                     elif i == len(frame_analyses) - 1:
-                        # Last segment: from midpoint to end
+                        # Last segment: from midpoint to end of real video
                         prev_timestamp = frames[i - 1][1]
                         time_start = (prev_timestamp + timestamp) / 2
-                        time_end = total_duration
+                        time_end = real_total_duration  # Use real video duration
                     else:
                         # Middle segments: from previous midpoint to next midpoint
                         prev_timestamp = frames[i - 1][1]
@@ -576,16 +597,17 @@ class AIVisionService:
                     
                     logger.info(f"Created segment {i+1}: {time_start:.1f}s-{time_end:.1f}s, score: {score:.2f}")
             else:
-                # Single frame fallback
+                # Single frame fallback - use real video duration
                 score = frame_analyses[0]["technique_score"] / 10
-                duration = frames[0][1] * 2 if frames else 10.0
                 
                 segments.append({
                     "time_start": 0.0,
-                    "time_end": duration,
+                    "time_end": real_total_duration,  # Use real video duration
                     "score": score,
                     "issue": None if score >= 0.7 else "technique_improvement_needed"
                 })
+                
+                logger.warning(f"🎥 SINGLE FRAME SEGMENT: 0.0s-{real_total_duration:.1f}s with score {score:.2f}")
         
         # Generate difficulty estimate
         difficulty = self._estimate_difficulty(avg_score, sport_type)
@@ -658,7 +680,8 @@ class AIVisionService:
     def _generate_overlay_from_analysis(
         self, 
         analysis: Dict[str, Any], 
-        frames: List[Tuple[str, float]]
+        frames: List[Tuple[str, float]],
+        video_duration: float = 0
     ) -> Dict[str, Any]:
         """Generate overlay data from AI analysis"""
         if not analysis.get("route_analysis", {}).get("route_detected"):
@@ -719,11 +742,15 @@ class AIVisionService:
                 }
             })
         
+        # Use real video duration instead of frame timestamps
+        real_duration = video_duration if video_duration > 0 else (max([f[1] for f in frames]) if frames else 15.0)
+        logger.warning(f"🎥 OVERLAY DURATION: Using {real_duration:.1f}s (video_duration={video_duration}, max_frame_time={max([f[1] for f in frames]) if frames else 0})")
+        
         return {
             "has_overlay": True,
             "elements": overlay_elements,
             "video_dimensions": {"width": 1280, "height": 720},
-            "total_duration": max([f[1] for f in frames]) if frames else 15.0
+            "total_duration": real_duration
         }
     
     def _create_fallback_analysis(self, analysis_id: str, sport_type: str) -> Dict[str, Any]:

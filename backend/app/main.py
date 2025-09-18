@@ -863,12 +863,13 @@ async def complete_upload(request: dict):
                 video_info['size']
             )
         
-        # Cache analysis result
-        try:
-            await redis_service.cache_analysis_result(analysis_id, analysis_result, expire=3600)
-            logger.info(f"Successfully cached analysis for {analysis_id}")
-        except Exception as analysis_cache_error:
-            logger.warning(f"Analysis caching failed: {analysis_cache_error}")
+        # TEMPORARILY DISABLE CACHING FOR DEBUGGING
+        logger.warning(f"🚫 CACHING DISABLED - Always generating fresh analysis for {analysis_id}")
+        # try:
+        #     await redis_service.cache_analysis_result(analysis_id, analysis_result, expire=3600)
+        #     logger.info(f"Successfully cached analysis for {analysis_id}")
+        # except Exception as analysis_cache_error:
+        #     logger.warning(f"Analysis caching failed: {analysis_cache_error}")
         
         # Update status to completed
         video_info['status'] = 'completed'
@@ -941,17 +942,11 @@ async def get_video_overlay(analysis_id: str):
 async def get_analysis_results(analysis_id: str):
     """Get analysis results by analysis ID"""
     try:
-        # Try to get from Redis cache first
-        try:
-            cached_result = await redis_service.get_cached_analysis(analysis_id)
-        except Exception as redis_err:
-            logger.warning(f"Redis error: {str(redis_err)}. Generating fallback analysis.")
-            cached_result = None
-            
-        if cached_result:
-            logger.info(f"Retrieved analysis {analysis_id} from cache")
-            analysis_result = cached_result
-        else:
+        # TEMPORARILY DISABLE CACHE LOOKUP FOR DEBUGGING
+        logger.warning(f"🚫 CACHE LOOKUP DISABLED - Always generating fresh analysis for {analysis_id}")
+        cached_result = None
+        
+        # Force fresh analysis generation
             # For demo purposes - generate a new analysis on demand when Redis is unavailable
             logger.info(f"Analysis {analysis_id} not in cache, generating new analysis")
             
