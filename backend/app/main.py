@@ -947,18 +947,18 @@ async def get_analysis_results(analysis_id: str):
         cached_result = None
         
         # Force fresh analysis generation
-            # For demo purposes - generate a new analysis on demand when Redis is unavailable
-            logger.info(f"Analysis {analysis_id} not in cache, generating new analysis")
-            
-            # Use AI Vision Service directly (unified architecture)
-            from app.services.ai_vision_service import ai_vision_service
-            
-            logger.info(f"🤖 Generating new AI analysis for {analysis_id}")
-            analysis_result = await ai_vision_service.analyze_climbing_video(
-                video_path=f"/videos/{analysis_id}",
-                analysis_id=analysis_id,
-                sport_type="climbing"
-            )
+        # For demo purposes - generate a new analysis on demand when Redis is unavailable
+        logger.info(f"Analysis {analysis_id} not in cache, generating new analysis")
+        
+        # Use AI Vision Service directly (unified architecture)
+        from app.services.ai_vision_service import ai_vision_service
+        
+        logger.info(f"🤖 Generating new AI analysis for {analysis_id}")
+        analysis_result = await ai_vision_service.analyze_climbing_video(
+            video_path=f"/videos/{analysis_id}",
+            analysis_id=analysis_id,
+            sport_type="climbing"
+        )
         
         # Generate overlay data if it exists in analysis result
         overlay_data = analysis_result.get('overlay_data', {"has_overlay": False})
