@@ -225,7 +225,7 @@ class AIVisionService:
             # Extract technique score using comprehensive German/English patterns
             logger.warning(f"🎯 SCORE EXTRACTION: Searching for technique score in:\n{analysis_text}")
             
-            technique_score = 7.0  # Default fallback
+            technique_score = None  # No fallback - require real AI data
             
             # German patterns (from the prompt format)
             score_patterns = [
@@ -257,15 +257,17 @@ class AIVisionService:
                     else:
                         logger.warning(f"❌ Score {extracted_score} out of range (1-10), trying next pattern")
             
-            if technique_score == 7.0:
-                logger.warning(f"⚠️ TECHNIQUE SCORE EXTRACTION FAILED - using default: {technique_score}")
-                logger.warning(f"⚠️ AI RESPONSE that failed parsing: '{analysis_text}'")
-            else:
-                logger.warning(f"✅ TECHNIQUE SCORE EXTRACTED: {technique_score}/10 from AI response")
+            if technique_score is None:
+                logger.error(f"❌ Could not extract technique score from AI response - no fallback available")
+                raise Exception("Failed to extract technique score from AI response")
             
             # Extract move count from AI response
             move_count = self._extract_move_count(analysis_text)
             logger.warning(f"🎯 EXTRACTED MOVE COUNT: {move_count} from AI response")
+            
+            # Extract visual difficulty from AI response
+            visual_difficulty = self._extract_visual_difficulty(analysis_text)
+            logger.warning(f"🎯 EXTRACTED VISUAL DIFFICULTY: {visual_difficulty} from AI response")
             
             # Extract holds information
             holds = self._extract_holds_info(analysis_text)
@@ -280,6 +282,7 @@ class AIVisionService:
                 "timestamp": timestamp,
                 "technique_score": technique_score,
                 "move_count": move_count,
+                "visual_difficulty": visual_difficulty,
                 "analysis_text": analysis_text,
                 "holds": holds,
                 "insights": insights,
@@ -289,16 +292,8 @@ class AIVisionService:
             
         except Exception as e:
             logger.error(f"Failed to parse frame analysis: {str(e)}")
-            return {
-                "timestamp": timestamp,
-                "technique_score": 7.0,
-                "move_count": 8,  # Default fallback
-                "analysis_text": analysis_text,
-                "holds": [],
-                "insights": ["AI analysis completed"],
-                "coordinates": [],
-                "movement_quality": "good"
-            }
+            # No fallback data - let the exception propagate
+            raise Exception(f"Frame analysis parsing failed: {str(e)}")
     
     def _extract_move_count(self, text: str) -> int:
         """Extract move count from AI analysis text with enhanced patterns"""
@@ -349,60 +344,63 @@ class AIVisionService:
                 else:
                     logger.warning(f"❌ Move count {move_count} out of range (3-25), trying next pattern")
         
-        # Smart fallback: analyze all numbers with frequency and context
-        logger.warning(f"🔍 No pattern matched - using smart fallback analysis")
-        numbers = re.findall(r'\b(\d+)\b', text)
-        candidate_moves = []
+        # No fallback - require real AI data
+        logger.error(f"❌ Could not extract move count from AI response - no fallback available")
+        raise Exception("Failed to extract move count from AI response")
+    
+    def _extract_visual_difficulty(self, text: str) -> float:
+        """Extract visual difficulty rating from AI analysis text"""
+        logger.warning(f"🔍 DIFFICULTY EXTRACTION: Full AI text to analyze:\n{text}")
         
-        for num_str in numbers:
-            num = int(num_str)
-            if 4 <= num <= 20:  # Reasonable move range
-                # Check context around the number
-                contexts = []
-                for match in re.finditer(rf'\b{num}\b', text, re.IGNORECASE):
-                    start = max(0, match.start() - 20)
-                    end = min(len(text), match.end() + 20)
-                    context = text[start:end].lower()
-                    contexts.append(context)
-                
-                # Score the number based on context
-                score = 0
-                for context in contexts:
-                    if any(word in context for word in ['moves', 'züge', 'griffe', 'total', 'count', 'route', 'problem', 'sequence']):
-                        score += 3
-                    if any(word in context for word in ['technique', 'score', 'rating', 'bewertung']):
-                        score -= 2  # These are likely scores, not move counts
-                    if any(word in context for word in ['time', 'seconds', 'minutes']):
-                        score -= 2  # These are likely time values
-                
-                candidate_moves.append((num, score, contexts))
-                logger.warning(f"📊 Number {num} scored {score} points based on contexts: {contexts}")
-        
-        # Select the best candidate
-        if candidate_moves:
-            # Sort by score (descending) then by number (ascending for lower move counts)
-            candidate_moves.sort(key=lambda x: (-x[1], x[0]))
-            best_move, best_score, best_contexts = candidate_moves[0]
+        # Look for visual difficulty patterns (German + English)
+        difficulty_patterns = [
+            # German patterns (most specific first)
+            r'visuelle schwierigkeit.*?[:\s]+(\d+(?:\.\d+)?)',  # "VISUELLE SCHWIERIGKEIT: 7.5"
+            r'schwierigkeit.*?[:\s]+(\d+(?:\.\d+)?)',  # "Schwierigkeit: 7"
+            r'schwierigkeitsgrad.*?[:\s]+(\d+(?:\.\d+)?)',  # "Schwierigkeitsgrad: 6.5"
+            r'route.*?schwierigkeit.*?[:\s]+(\d+(?:\.\d+)?)',  # "Route Schwierigkeit: 8"
+            r'(\d+(?:\.\d+)?)\s*(?:von|/)\s*10.*schwierig',  # "7.5 von 10 schwierigkeit"
             
-            if best_score > 0:  # At least some positive context
-                logger.warning(f"🎯 Smart fallback selected: {best_move} moves (score: {best_score}, contexts: {best_contexts})")
-                return best_move
-            else:
-                # Use most frequent reasonable number
-                number_frequency = {}
-                for num, _, _ in candidate_moves:
-                    number_frequency[num] = number_frequency.get(num, 0) + 1
-                
-                most_frequent = max(number_frequency.items(), key=lambda x: x[1])[0]
-                logger.warning(f"🎯 Using most frequent number: {most_frequent} moves")
-                return most_frequent
+            # English patterns
+            r'visual difficulty.*?[:\s]+(\d+(?:\.\d+)?)',  # "Visual difficulty: 7.5"
+            r'difficulty.*?[:\s]+(\d+(?:\.\d+)?)',  # "Difficulty: 7"
+            r'difficulty rating.*?[:\s]+(\d+(?:\.\d+)?)',  # "Difficulty rating: 6.5"
+            r'route difficulty.*?[:\s]+(\d+(?:\.\d+)?)',  # "Route difficulty: 8"
+            r'(\d+(?:\.\d+)?)\s*out of\s*10.*difficult',  # "7.5 out of 10 difficulty"
+            r'(\d+(?:\.\d+)?)\s*/\s*10.*difficult',  # "7.5/10 difficulty"
+            
+            # Grade-based patterns (convert to 1-10 scale)
+            r'v(\d+)',  # "V7" (V-scale)
+            r'grade.*?v(\d+)',  # "Grade V7"
+            r'(\d+[a-c]?)(?:\+|-)?',  # "6a+" or "7c" (French scale)
+        ]
         
-        # Generate semi-random fallback based on text hash for variation
-        import hashlib
-        text_hash = int(hashlib.md5(text.encode()).hexdigest()[:2], 16)
-        fallback_moves = 6 + (text_hash % 8)  # Range: 6-13 moves
-        logger.warning(f"⚠️ Could not extract move count from AI response, using text-based fallback: {fallback_moves}")
-        return fallback_moves
+        for i, pattern in enumerate(difficulty_patterns):
+            match = re.search(pattern, text, re.IGNORECASE)
+            logger.warning(f"🔎 Difficulty Pattern {i+1}: '{pattern}' -> {'MATCH: ' + match.group(0) if match else 'no match'}")
+            if match:
+                try:
+                    if 'v' in pattern.lower() and i >= 11:  # V-scale patterns
+                        v_grade = int(match.group(1))
+                        # Convert V-scale to 1-10: V0=3, V1=4, V2=5, ..., V8=11 -> cap at 10
+                        difficulty = min(10, max(1, v_grade + 3))
+                        logger.warning(f"🎯 V-scale Pattern {i+1} matched: '{match.group(0)}' -> V{v_grade} -> {difficulty}/10")
+                    else:
+                        difficulty = float(match.group(1))
+                        logger.warning(f"🎯 Difficulty Pattern {i+1} matched: '{match.group(0)}' -> {difficulty}")
+                    
+                    # Validate reasonable range for difficulty (1-10)
+                    if 1 <= difficulty <= 10:
+                        logger.warning(f"✅ AI detected visual difficulty: {difficulty}/10 from pattern: '{match.group(0)}'")
+                        return difficulty
+                    else:
+                        logger.warning(f"❌ Difficulty {difficulty} out of range (1-10), trying next pattern")
+                except ValueError:
+                    logger.warning(f"❌ Could not parse difficulty from: '{match.group(0)}'")
+        
+        # No fallback - require real AI data
+        logger.error(f"❌ Could not extract visual difficulty from AI response - no fallback available")
+        raise Exception("Failed to extract visual difficulty from AI response")
     
     def _extract_holds_info(self, text: str) -> List[Dict[str, Any]]:
         """Extract hold information from analysis text"""
@@ -492,8 +490,10 @@ class AIVisionService:
         if not frame_analyses:
             raise Exception("No frame analyses available for synthesis - cannot generate real data")
         
-        # Calculate average scores
-        technique_scores = [fa.get("technique_score", 7) for fa in frame_analyses]
+        # Calculate average scores - no fallbacks
+        technique_scores = [fa["technique_score"] for fa in frame_analyses if "technique_score" in fa]
+        if not technique_scores:
+            raise Exception("No valid technique scores found in frame analyses")
         avg_score = sum(technique_scores) / len(technique_scores)
         
         # Collect all insights
@@ -504,64 +504,25 @@ class AIVisionService:
         # Deduplicate and limit insights
         unique_insights = list(dict.fromkeys(all_insights))[:5]
         
-        # SINGLE FRAME ANALYSIS: Generate dynamic route based on AI insights
+        # Use only real AI coordinates - no synthetic route generation
         route_points = []
-        if frame_analyses and frames:
-            # Use the single frame analysis to create a dynamic route
-            frame_analysis = frame_analyses[0]
-            timestamp = frames[0][1] if frames else 5.0
-            technique_score = frame_analysis.get("technique_score", 7.0)
-            
-            # Use AI-detected move count instead of technique-based estimation
-            ai_detected_moves = frame_analysis.get("move_count", 8)
-            logger.warning(f"🚀 SYNTHESIS - AI detected moves from frame_analysis: {ai_detected_moves}")
-            logger.warning(f"🔍 SYNTHESIS - Full frame_analysis data: {frame_analysis}")
-            num_moves = max(5, min(20, ai_detected_moves))  # Keep in reasonable range
-            
-            # Generate hash for route variation (always needed for route generation)
-            import hashlib
-            hash_num = int(hashlib.md5(analysis_id.encode()).hexdigest()[:2], 16) % 3
-            
-            # Add some randomness based on analysis_id for variety ONLY if AI didn't detect moves
-            if ai_detected_moves == 8:  # Default fallback was used
-                num_moves += hash_num - 1  # Add -1, 0, or +1 for variation
-                num_moves = max(5, min(15, num_moves))  # Keep in reasonable range
-                logger.warning(f"⚠️ USED FALLBACK: adjusted moves to {num_moves} (hash_num: {hash_num})")
-            else:
-                logger.warning(f"✅ USED AI DETECTION: keeping {num_moves} moves from AI")
-            
-            logger.warning(f"🎯 AI-DETECTED MOVES: {ai_detected_moves} -> final: {num_moves} moves (technique score: {technique_score})")
-            logger.warning(f"🔢 Route points will be generated: {num_moves}, total_moves will be: {num_moves}")
-            
-            # Generate route points dynamically using real video duration
-            for i in range(num_moves):
-                progress = i / (num_moves - 1) if num_moves > 1 else 0
-                # Use real video duration for route timing instead of first frame timestamp
-                real_duration = video_duration if video_duration > 0 else timestamp * 2
-                time_point = progress * real_duration
-                
-                # Create varied route positions
-                base_x = 300 + (hash_num * 50)  # Vary starting position
-                base_y = 450
-                
-                x = base_x + int(progress * 120) + (i % 3 - 1) * 30  # Add zigzag
-                y = base_y - int(progress * 330)  # Go upward
-                
-                hold_types = ["start", "crimp", "jug", "sloper", "pinch", "gaston"]
-                if i == 0:
-                    hold_type = "start"
-                elif i == num_moves - 1:
-                    hold_type = "finish"
-                else:
-                    hold_type = hold_types[(i + hash_num) % (len(hold_types) - 1) + 1]
-                
+        all_coordinates = []
+        for analysis in frame_analyses:
+            all_coordinates.extend(analysis.get("coordinates", []))
+        
+        # If AI provided coordinates, use them as route points
+        if all_coordinates:
+            logger.info(f"Using {len(all_coordinates)} AI-detected coordinates as route points")
+            for i, coord in enumerate(all_coordinates):
                 route_points.append({
-                    "time": time_point,
-                    "x": x,
-                    "y": y,
-                    "hold_type": hold_type,
-                    "source": "ai_enhanced"
+                    "time": coord.get("time", i * 2.0),  # Use time if provided, else estimate
+                    "x": coord["x"],
+                    "y": coord["y"], 
+                    "hold_type": coord.get("type", "hold"),
+                    "source": "ai_detected"
                 })
+        else:
+            logger.warning("No AI-detected coordinates available - no route points generated")
         
         # Create performance segments based on all analyzed frames using real video duration
         segments = []
@@ -573,19 +534,7 @@ class AIVisionService:
             if len(frame_analyses) > 1:
                 for i, (frame_analysis, frame_data) in enumerate(zip(frame_analyses, frames)):
                     timestamp = frame_data[1]
-                    raw_technique_score = frame_analysis["technique_score"]
-                    
-                    # Add variability if AI parsing failed and we got default score
-                    if raw_technique_score == 7.0:  # Default fallback score
-                        # Add hash-based variation for each segment
-                        import hashlib
-                        segment_hash = int(hashlib.md5(f"{analysis_id}_{i}".encode()).hexdigest()[:2], 16)
-                        variation = (segment_hash % 21) - 10  # -1.0 to +1.0 range
-                        varied_score = max(5.0, min(9.0, raw_technique_score + variation/10))
-                        logger.warning(f"🎲 SEGMENT {i+1}: Varied score from {raw_technique_score} to {varied_score:.1f} (hash: {segment_hash})")
-                        score = varied_score / 10
-                    else:
-                        score = raw_technique_score / 10
+                    score = frame_analysis["technique_score"] / 10
                     
                     # Calculate segment boundaries using real video duration
                     if i == 0:
@@ -614,19 +563,8 @@ class AIVisionService:
                     
                     logger.info(f"Created segment {i+1}: {time_start:.1f}s-{time_end:.1f}s, score: {score:.2f}")
             else:
-                # Single frame fallback - use real video duration
-                raw_technique_score = frame_analyses[0]["technique_score"]
-                
-                # Add variability if AI parsing failed
-                if raw_technique_score == 7.0:  # Default fallback score
-                    import hashlib
-                    single_hash = int(hashlib.md5(f"{analysis_id}_single".encode()).hexdigest()[:2], 16)
-                    variation = (single_hash % 21) - 10  # -1.0 to +1.0 range  
-                    varied_score = max(5.0, min(9.0, raw_technique_score + variation/10))
-                    logger.warning(f"🎲 SINGLE FRAME: Varied score from {raw_technique_score} to {varied_score:.1f} (hash: {single_hash})")
-                    score = varied_score / 10
-                else:
-                    score = raw_technique_score / 10
+                # Single frame - use real video duration
+                score = frame_analyses[0]["technique_score"] / 10
                 
                 segments.append({
                     "time_start": 0.0,
@@ -637,8 +575,15 @@ class AIVisionService:
                 
                 logger.warning(f"🎥 SINGLE FRAME SEGMENT: 0.0s-{real_total_duration:.1f}s with score {score:.2f}")
         
-        # Generate difficulty estimate
-        difficulty = self._estimate_difficulty(avg_score, sport_type)
+        # Use visual difficulty from AI analysis - no fallback calculation
+        visual_difficulties = [fa["visual_difficulty"] for fa in frame_analyses if "visual_difficulty" in fa]
+        if not visual_difficulties:
+            raise Exception("No visual difficulty data found in frame analyses")
+        avg_visual_difficulty = sum(visual_difficulties) / len(visual_difficulties)
+        
+        # Convert numerical difficulty to grade string
+        difficulty = self._convert_difficulty_to_grade(avg_visual_difficulty, sport_type)
+        logger.info(f"Using AI visual difficulty: {avg_visual_difficulty:.1f} -> {difficulty}")
         
         final_total_moves = len(route_points)
         logger.warning(f"🔢 FINAL total_moves in route_analysis: {final_total_moves} (route_points length: {len(route_points)})")
@@ -671,6 +616,23 @@ class AIVisionService:
             # Cycle through different hold types
             return hold_types[(index % (len(hold_types) - 2)) + 1]
     
+    def _convert_difficulty_to_grade(self, visual_difficulty: float, sport_type: str) -> str:
+        """Convert numerical visual difficulty to climbing grade"""
+        if visual_difficulty >= 9:
+            return "7a+ / V8"
+        elif visual_difficulty >= 8:
+            return "6c+ / V6"
+        elif visual_difficulty >= 7:
+            return "6b / V5"
+        elif visual_difficulty >= 6:
+            return "6a / V4"
+        elif visual_difficulty >= 5:
+            return "5c / V3"
+        elif visual_difficulty >= 4:
+            return "5a / V1"
+        else:
+            return "4a / VB"
+    
     def _estimate_difficulty(self, avg_score: float, sport_type: str) -> str:
         """Estimate climbing difficulty based on AI analysis"""
         if avg_score >= 9:
@@ -690,8 +652,8 @@ class AIVisionService:
         """Generate recommendations based on frame analyses"""
         recommendations = []
         
-        # Analyze common issues across frames
-        low_scores = [fa for fa in frame_analyses if fa.get("technique_score", 7) < 7]
+        # Analyze common issues across frames - no fallbacks
+        low_scores = [fa for fa in frame_analyses if "technique_score" in fa and fa["technique_score"] < 7]
         
         if len(low_scores) > len(frame_analyses) * 0.3:  # More than 30% of frames need work
             recommendations.append("Konzentriere dich auf grundlegende Klettertechnik und Körperposition")

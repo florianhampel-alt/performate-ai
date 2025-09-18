@@ -55,7 +55,8 @@ class VideoAnalysisService:
             
         except Exception as e:
             logger.error(f"AI video analysis failed for {analysis_id}: {str(e)}")
-            return self._create_fallback_analysis(analysis_id, sport_type)
+            # No fallback - let the exception propagate to require real AI data
+            raise Exception(f"AI video analysis failed for {analysis_id}: {str(e)}")
     
     def _process_video_sync(self, video_path: str, analysis_id: str, sport_type: str) -> Dict:
         """
@@ -89,7 +90,8 @@ class VideoAnalysisService:
             
         except Exception as e:
             logger.error(f"Sync video processing failed: {str(e)}")
-            return self._create_fallback_analysis(analysis_id, sport_type)
+            # No fallback - let the exception propagate 
+            raise Exception(f"Sync video processing failed: {str(e)}")
     
     def _simulate_route_analysis(self, sport_type: str) -> Dict:
         """

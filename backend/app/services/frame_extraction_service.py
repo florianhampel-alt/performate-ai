@@ -262,16 +262,20 @@ class FrameExtractionService:
 
 1. TECHNIK-BEWERTUNG für diesen Abschnitt: [Zahl von 1-10 basierend auf Körperposition, Balance, Effizienz]
 2. GESCHÄTZTE GESAMTZAHL ZÜGE IN DER KOMPLETTEN ROUTE: [schätze die komplette Route von Start bis Top - "8 Züge" bis "15 Züge"]
-3. GRIFF-ANALYSE: [beschreibe sichtbare Griffe und deren Schwierigkeit]
-4. BEWEGUNGSQUALITÄT: [bewerte Balance, Flüssigkeit, Effizienz in diesem Moment]
-5. SPEZIFISCHER TIPP: [eine konkrete Verbesserung für diesen Bewegungsabschnitt]
+3. ROUTE-SCHWIERIGKEIT VISUELL: [analysiere die Griff-Farben, Griff-Formen und Route-Anordnung. Schätze den Schwierigkeitsgrad: "4a", "5b", "6a+", "6c", "7a", etc.]
+4. GRIFF-FARBE UND TYP: [welche Farbe haben die Griffe? z.B. "Gelbe Route - Crimps und Jugs" oder "Blaue Route - Slopers und Pinches"]
+5. GRIFF-ANALYSE: [beschreibe sichtbare Griffe und deren Schwierigkeit]
+6. BEWEGUNGSQUALITÄT: [bewerte Balance, Flüssigkeit, Effizienz in diesem Moment]
+7. SPEZIFISCHER TIPP: [eine konkrete Verbesserung für diesen Bewegungsabschnitt]
 
 BEISPIEL:
 1. TECHNIK-BEWERTUNG: 8/10
 2. GESCHÄTZTE GESAMTZAHL ZÜGE: 12 Züge
-3. GRIFF-ANALYSE: Crimps und Slopers, mittlerer Schwierigkeitsgrad
-4. BEWEGUNGSQUALITÄT: Gute Balance, statische Bewegung
-5. SPEZIFISCHER TIPP: Hüfte näher zur Wand für bessere Balance
+3. ROUTE-SCHWIERIGKEIT VISUELL: 6a
+4. GRIFF-FARBE UND TYP: Rote Route - Crimps und Slopers
+5. GRIFF-ANALYSE: Kleine Crimps und rutschige Slopers, hoher Schwierigkeitsgrad
+6. BEWEGUNGSQUALITÄT: Gute Balance, statische Bewegung
+7. SPEZIFISCHER TIPP: Hüfte näher zur Wand für bessere Balance
 
 Deine Antwort:"""
         else:
