@@ -954,8 +954,27 @@ async def get_analysis_results(analysis_id: str):
         from app.services.ai_vision_service import ai_vision_service
         
         logger.info(f"🤖 Generating new AI analysis for {analysis_id}")
+        
+        # CRITICAL FIX: Reconstruct S3 key if upload-complete wasn't called
+        # Check if we have the video in video_storage (from upload-complete)
+        video_path = f"/videos/{analysis_id}"
+        if analysis_id in video_storage:
+            video_info = video_storage[analysis_id]
+            if 's3_key' in video_info:
+                video_path = video_info['s3_key']
+                logger.warning(f"🔑 Using S3 key from video_storage: {video_path}")
+            else:
+                logger.warning(f"🚨 Video in storage but no S3 key - using default path")
+        else:
+            # Try to reconstruct S3 key from analysis_id
+            from datetime import datetime
+            today = datetime.now().strftime("%Y/%m/%d")
+            reconstructed_s3_key = f"videos/{today}/{analysis_id}.mp4"
+            logger.warning(f"🔄 RECONSTRUCTING S3 key (upload-complete not called): {reconstructed_s3_key}")
+            video_path = reconstructed_s3_key
+        
         analysis_result = await ai_vision_service.analyze_climbing_video(
-            video_path=f"/videos/{analysis_id}",
+            video_path=video_path,
             analysis_id=analysis_id,
             sport_type="climbing"
         )
