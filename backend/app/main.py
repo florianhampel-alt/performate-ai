@@ -208,25 +208,26 @@ async def debug_cache_analysis(analysis_id: str):
                 out.release()
                 temp_video_path = temp_video.name
             
-            # Extract frames using the new frame extraction service
-            frames_data = await frame_extraction_service.extract_frames(
+            # Extract frames using the frame extraction service
+            frames_data = await frame_extraction_service.extract_frames_from_video(
                 video_path=temp_video_path,
-                analysis_id=f"debug_{analysis_id}",
-                frame_interval=1.0
+                analysis_id=f"debug_{analysis_id}"
             )
             
             frame_debug_info = {
-                "frames_extracted": len(frames_data.get('frame_paths', [])),
-                "extraction_successful": frames_data.get('success', False),
-                "frame_interval": frames_data.get('frame_interval', 'unknown')
+                "frames_extracted": len(frames_data) if frames_data else 0,
+                "extraction_successful": len(frames_data) > 0 if frames_data else False,
+                "frame_format": "base64_images_with_timestamps"
             }
             
-            logger.warning(f"🔍 Extracted {len(frames_data.get('frame_paths', []))} frames for debug analysis")
+            logger.warning(f"🔍 Extracted {len(frames_data) if frames_data else 0} frames for debug analysis")
             
             # Perform AI analysis on extracted frames
-            if frames_data.get('success') and frames_data.get('frame_paths'):
-                fresh_analysis = await ai_vision_service.analyze_extracted_frames(
-                    frame_paths=frames_data['frame_paths'],
+            if frames_data and len(frames_data) > 0:
+                logger.warning(f"🔍 Starting AI analysis with {len(frames_data)} frames")
+                
+                fresh_analysis = await ai_vision_service.analyze_climbing_video(
+                    video_path=temp_video_path,
                     analysis_id=f"debug_{analysis_id}",
                     sport_type="bouldering"
                 )
@@ -348,16 +349,17 @@ async def test_ai_variability():
             
             try:
                 # Extract frames
-                frames_data = await frame_extraction_service.extract_frames(
+                frames_data = await frame_extraction_service.extract_frames_from_video(
                     video_path=temp_video_path,
-                    analysis_id=test_id,
-                    frame_interval=1.0
+                    analysis_id=test_id
                 )
                 
                 # Perform AI analysis
-                if frames_data.get('success') and frames_data.get('frame_paths'):
-                    analysis_result = await ai_vision_service.analyze_extracted_frames(
-                        frame_paths=frames_data['frame_paths'],
+                if frames_data and len(frames_data) > 0:
+                    logger.warning(f"🧪 Test {test_num + 1}: Starting AI analysis with {len(frames_data)} frames")
+                    
+                    analysis_result = await ai_vision_service.analyze_climbing_video(
+                        video_path=temp_video_path,
                         analysis_id=test_id,
                         sport_type="bouldering"
                     )
@@ -367,7 +369,7 @@ async def test_ai_variability():
                     results.append({
                         "test_id": test_id,
                         "test_number": test_num + 1,
-                        "frames_extracted": len(frames_data.get('frame_paths', [])),
+                        "frames_extracted": len(frames_data),
                         "total_moves": route_analysis.get('total_moves'),
                         "performance_score": analysis_result.get('performance_score'),
                         "route_points": len(route_analysis.get('ideal_route', [])),
