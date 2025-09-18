@@ -416,8 +416,8 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
                       }`} />
                       <span className="text-sm text-gray-600">
                         {data.status === 'good' ? 'gut' : 
-                         data.status === 'needs_improvement' || data.status === 'needs improvement' ? 'verbesserung nötig' : 
-                         data.status || 'nicht analysiert'}
+                         (data.status === 'needs_improvement' || data.status === 'needs improvement') ? 'verbesserung nötig' : 
+                         data.status ? String(data.status).replace('_', ' ') : 'nicht analysiert'}
                       </span>
                     </div>
                   </div>
