@@ -201,6 +201,7 @@ class AIVisionService:
     
     def _parse_frame_analysis(self, analysis_text: str, timestamp: float) -> Dict[str, Any]:
         """Parse GPT-4 Vision response into structured data"""
+        logger.warning(f"🔍 PARSING AI RESPONSE: '{analysis_text[:300]}...'")  # Show first 300 chars
         try:
             # Extract technique score using regex
             score_match = re.search(r'(?:score|rate|rating)[:\s]+(\d+(?:\.\d+)?)', analysis_text, re.IGNORECASE)
@@ -208,6 +209,7 @@ class AIVisionService:
             
             # Extract move count from AI response
             move_count = self._extract_move_count(analysis_text)
+            logger.warning(f"🎯 EXTRACTED MOVE COUNT: {move_count} from AI response")
             
             # Extract holds information
             holds = self._extract_holds_info(analysis_text)
@@ -395,6 +397,8 @@ class AIVisionService:
             
             # Use AI-detected move count instead of technique-based estimation
             ai_detected_moves = frame_analysis.get("move_count", 8)
+            logger.warning(f"🚀 SYNTHESIS - AI detected moves from frame_analysis: {ai_detected_moves}")
+            logger.warning(f"🔍 SYNTHESIS - Full frame_analysis data: {frame_analysis}")
             num_moves = max(5, min(20, ai_detected_moves))  # Keep in reasonable range
             
             # Generate hash for route variation (always needed for route generation)
@@ -405,6 +409,9 @@ class AIVisionService:
             if ai_detected_moves == 8:  # Default fallback was used
                 num_moves += hash_num - 1  # Add -1, 0, or +1 for variation
                 num_moves = max(5, min(15, num_moves))  # Keep in reasonable range
+                logger.warning(f"⚠️ USED FALLBACK: adjusted moves to {num_moves} (hash_num: {hash_num})")
+            else:
+                logger.warning(f"✅ USED AI DETECTION: keeping {num_moves} moves from AI")
             
             logger.warning(f"🎯 AI-DETECTED MOVES: {ai_detected_moves} -> final: {num_moves} moves (technique score: {technique_score})")
             logger.warning(f"🔢 Route points will be generated: {num_moves}, total_moves will be: {num_moves}")

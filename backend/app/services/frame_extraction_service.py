@@ -207,16 +207,24 @@ class FrameExtractionService:
             return None
     
     def get_frame_analysis_prompt(self, sport_type: str = "climbing") -> str:
-        """EFFICIENT prompt for useful AI insights"""
+        """ULTRA EXPLICIT prompt for move counting"""
         if sport_type in ['climbing', 'bouldering']:
-            return """Analyze this climbing image:
-1. Technique score: X/10
-2. Total moves in route: X moves (count all holds from start to top)
-3. Hold types visible: [list types]
-4. Main improvement: [specific tip]
-Answer ALL points with exact numbers."""
+            return """Analyze this climbing/bouldering image. MUST answer with exact numbers:
+
+1. Technique score: [give a number 1-10]
+2. TOTAL MOVES IN ROUTE: [count every single hold from bottom to top - give exact number like "8 moves" or "12 moves"]
+3. Hold analysis: [describe key holds visible]
+4. Movement tip: [one specific improvement]
+
+EXAMPLE RESPONSE:
+1. Technique score: 7/10
+2. TOTAL MOVES IN ROUTE: 11 moves
+3. Hold analysis: Mix of jugs and crimps
+4. Movement tip: Better hip positioning
+
+Your response:"""
         else:
-            return f"Analyze {sport_type}: rate 1-10, count moves, brief tip."
+            return f"Analyze {sport_type}: rate 1-10, count total moves as number, brief tip."
 
 
 # Global service instance
