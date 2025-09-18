@@ -156,6 +156,73 @@ async def test_move_extraction():
         logger.error(f"🔧 MOVE DEBUG: Traceback - {traceback.format_exc()}")
         return {"error": str(e)}
 
+@app.get("/debug/cache/{analysis_id}")
+async def debug_cache_analysis(analysis_id: str):
+    """Debug endpoint to investigate analysis caching issues"""
+    try:
+        import datetime
+        
+        logger.warning(f"🔍 CACHE DEBUG: Investigating {analysis_id}")
+        
+        # Check what's in Redis cache
+        cached_result = await redis_service.get_cached_analysis(analysis_id)
+        
+        # Check what's in memory storage
+        memory_data = video_storage.get(analysis_id, {})
+        
+        # Force a new AI analysis
+        from app.services.ai_vision_service import ai_vision_service
+        
+        fresh_analysis = None
+        try:
+            logger.warning(f"🔍 Generating fresh analysis for comparison...")
+            fresh_analysis = await ai_vision_service.analyze_climbing_video(
+                video_path=f"/videos/{analysis_id}",
+                analysis_id=analysis_id,
+                sport_type="climbing"
+            )
+            logger.warning(f"🔍 Fresh analysis total_moves: {fresh_analysis.get('route_analysis', {}).get('total_moves')}")
+        except Exception as fresh_err:
+            logger.error(f"🔍 Fresh analysis failed: {fresh_err}")
+        
+        return {
+            "analysis_id": analysis_id,
+            "timestamp": datetime.datetime.now().isoformat(),
+            "cached_data": {
+                "exists": cached_result is not None,
+                "total_moves": cached_result.get('route_analysis', {}).get('total_moves') if cached_result else None,
+                "cache_key": f"analysis:{analysis_id}",
+                "performance_score": cached_result.get('performance_score') if cached_result else None
+            },
+            "memory_data": {
+                "exists": analysis_id in video_storage,
+                "filename": memory_data.get('filename'),
+                "size_mb": memory_data.get('size', 0) / (1024*1024) if memory_data.get('size') else 0,
+                "storage_type": memory_data.get('storage_type')
+            },
+            "fresh_analysis": {
+                "generated": fresh_analysis is not None,
+                "total_moves": fresh_analysis.get('route_analysis', {}).get('total_moves') if fresh_analysis else None,
+                "performance_score": fresh_analysis.get('performance_score') if fresh_analysis else None
+            },
+            "comparison": {
+                "moves_match": (
+                    cached_result and fresh_analysis and 
+                    cached_result.get('route_analysis', {}).get('total_moves') == 
+                    fresh_analysis.get('route_analysis', {}).get('total_moves')
+                ) if cached_result and fresh_analysis else None,
+                "score_match": (
+                    cached_result and fresh_analysis and
+                    cached_result.get('performance_score') == fresh_analysis.get('performance_score')
+                ) if cached_result and fresh_analysis else None
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"🔍 CACHE DEBUG failed for {analysis_id}: {str(e)}")
+        import traceback
+        return {"error": str(e), "traceback": traceback.format_exc()}
+
 @app.get("/debug/force-ai/{analysis_id}")
 async def force_ai_analysis(analysis_id: str):
     """Force AI analysis for a specific video"""
