@@ -5,7 +5,7 @@ Supports both local Redis and Upstash Redis
 
 import redis
 import json
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from app.config.base import settings
 from app.utils.logger import get_logger
 
