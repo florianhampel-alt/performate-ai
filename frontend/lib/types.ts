@@ -28,9 +28,12 @@ export interface AnalysisInsight {
   priority: 'low' | 'medium' | 'high'
 }
 
+export type MetricStatus = 'good' | 'needs_improvement' | 'not_analyzed' | 'needs improvement' // Legacy support
+
 export interface KeyMetric {
-  status: 'good' | 'needs_improvement' | 'not_analyzed'
+  status: MetricStatus
   value?: number
+  score?: number
 }
 
 export interface SportSpecificAnalysis {

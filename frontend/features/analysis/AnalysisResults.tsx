@@ -9,6 +9,7 @@ import LoadingSpinner from '@/components/LoadingSpinner'
 import VideoOverlay from '@/components/VideoOverlay'
 import { getAnalysisResults } from '@/lib/api'
 import type { AnalysisResult } from '@/lib/types'
+import { translateMetricStatus, translateMetricName, getMetricStatusColor } from '@/lib/utils/metrics'
 
 interface AnalysisResultsProps {
   analysisId: string
@@ -403,21 +404,12 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
                 {Object.entries(analysis.sport_specific_analysis.key_metrics).map(([metric, data]) => (
                   <div key={metric} className="metric-card">
                     <h4 className="font-medium text-gray-900 capitalize mb-2">
-                      {metric === 'balance' ? 'balance' : 
-                       metric === 'efficiency' ? 'effizienz' : 
-                       metric === 'technique' ? 'technik' : 
-                       metric.replace('_', ' ')}
+                      {translateMetricName(metric)}
                     </h4>
                     <div className="flex items-center">
-                      <div className={`w-3 h-3 rounded-full mr-2 ${
-                        data.status === 'good' ? 'bg-green-500' : 
-                        data.status === 'needs_improvement' ? 'bg-yellow-500' : 
-                        'bg-gray-400'
-                      }`} />
+                      <div className={`w-3 h-3 rounded-full mr-2 ${getMetricStatusColor(data.status)}`} />
                       <span className="text-sm text-gray-600">
-                        {data.status === 'good' ? 'gut' : 
-                         (data.status === 'needs_improvement' || data.status === 'needs improvement') ? 'verbesserung nötig' : 
-                         data.status ? String(data.status).replace('_', ' ') : 'nicht analysiert'}
+                        {translateMetricStatus(data.status)}
                       </span>
                     </div>
                   </div>
