@@ -20,8 +20,9 @@ logger = get_logger(__name__)
 
 class FrameExtractionService:
     def __init__(self):
-        self.max_frames = 1  # ULTRA EFFICIENT: Single frame analysis only
-        self.frame_size = (480, 320)  # ULTRA REDUCED: Smallest workable resolution
+        self.max_frames = 5  # Extract 5 frames across entire video for full route analysis
+        self.frame_size = (640, 480)  # Higher resolution for better AI analysis
+        self.min_interval = 3.0  # Minimum seconds between frames
         
     async def extract_frames_from_video(
         self, 
@@ -146,27 +147,32 @@ class FrameExtractionService:
         return frames
     
     def _calculate_frame_indices(self, total_frames: int, duration: float) -> List[int]:
-        """Calculate which frames to extract for analysis"""
-        if total_frames <= self.max_frames:
-            # Extract all frames if video is short
-            return list(range(0, total_frames, max(1, total_frames // self.max_frames)))
-        
-        # For longer videos, extract frames at strategic points
+        """Calculate which frames to extract for complete route analysis"""
         indices = []
         
-        # Always include first frame
-        indices.append(0)
+        if duration <= 10:  # Short videos - extract more frames
+            # For short videos, extract frames every 2 seconds
+            fps = total_frames / duration if duration > 0 else 24
+            interval_frames = int(fps * 2)  # Every 2 seconds
+            indices = list(range(0, total_frames, max(1, interval_frames)))
+        else:
+            # For longer videos, extract strategically across the entire duration
+            # Start (0-10%), Early climb (20%), Mid climb (40%), Late climb (70%), Finish (90-100%)
+            key_percentages = [0.05, 0.25, 0.45, 0.65, 0.85, 0.95]  # 6 strategic points
+            
+            for percentage in key_percentages:
+                frame_idx = int(total_frames * percentage)
+                indices.append(min(frame_idx, total_frames - 1))
         
-        # Extract frames evenly distributed through the video
-        step = total_frames // (self.max_frames - 2)
-        for i in range(1, self.max_frames - 1):
-            indices.append(min(i * step, total_frames - 1))
+        # Remove duplicates, sort, and limit to max_frames
+        indices = sorted(set(indices))[:self.max_frames]
         
-        # Always include last frame
-        if total_frames > 1:
-            indices.append(total_frames - 1)
+        # Ensure we always have at least start and end frames
+        if len(indices) < 2 and total_frames > 1:
+            indices = [0, total_frames - 1]
         
-        return sorted(set(indices))  # Remove duplicates and sort
+        logger.info(f"Selected frame indices for {duration:.1f}s video: {indices}")
+        return indices
     
     def _process_frame(self, frame) -> Optional[str]:
         """Process frame and convert to base64"""
@@ -209,18 +215,20 @@ class FrameExtractionService:
     def get_frame_analysis_prompt(self, sport_type: str = "climbing") -> str:
         """ULTRA EXPLICIT prompt for move counting"""
         if sport_type in ['climbing', 'bouldering']:
-            return """Analysiere dieses Kletter-/Boulderbild. MUSS mit exakten Zahlen antworten:
+            return """Analysiere dieses Kletter-/Boulder-Frame als Teil einer kompletten Route. MUSS mit exakten Zahlen antworten:
 
-1. Technik-Bewertung: [Zahl von 1-10]
-2. GESAMTZAHL ZÜGE IN DER ROUTE: [zähle jeden einzelnen Griff von unten nach oben - gib exakte Zahl wie "8 Züge" oder "12 Züge"]
-3. Griff-Analyse: [beschreibe die wichtigsten sichtbaren Griffe]
-4. Bewegungstipp: [eine spezifische Verbesserung]
+1. TECHNIK-BEWERTUNG für diesen Abschnitt: [Zahl von 1-10 basierend auf Körperposition, Balance, Effizienz]
+2. GESCHÄTZTE GESAMTZAHL ZÜGE IN DER KOMPLETTEN ROUTE: [schätze die komplette Route von Start bis Top - "8 Züge" bis "15 Züge"]
+3. GRIFF-ANALYSE: [beschreibe sichtbare Griffe und deren Schwierigkeit]
+4. BEWEGUNGSQUALITÄT: [bewerte Balance, Flüssigkeit, Effizienz in diesem Moment]
+5. SPEZIFISCHER TIPP: [eine konkrete Verbesserung für diesen Bewegungsabschnitt]
 
-BEISPIEL ANTWORT:
-1. Technik-Bewertung: 7/10
-2. GESAMTZAHL ZÜGE IN DER ROUTE: 11 Züge
-3. Griff-Analyse: Mischung aus Henkeln und Leisten
-4. Bewegungstipp: Bessere Hüftpositionierung
+BEISPIEL:
+1. TECHNIK-BEWERTUNG: 8/10
+2. GESCHÄTZTE GESAMTZAHL ZÜGE: 12 Züge
+3. GRIFF-ANALYSE: Crimps und Slopers, mittlerer Schwierigkeitsgrad
+4. BEWEGUNGSQUALITÄT: Gute Balance, statische Bewegung
+5. SPEZIFISCHER TIPP: Hüfte näher zur Wand für bessere Balance
 
 Deine Antwort:"""
         else:

@@ -452,18 +452,54 @@ class AIVisionService:
                     "source": "ai_enhanced"
                 })
         
-        # Create simple performance segments for single frame analysis
+        # Create performance segments based on all analyzed frames
         segments = []
-        if frame_analyses:
-            score = frame_analyses[0]["technique_score"] / 10
-            duration = frames[0][1] * 2 if frames else 10.0
+        if frame_analyses and frames:
+            total_duration = max([frame[1] for frame in frames]) if frames else 10.0
             
-            segments.append({
-                "time_start": 0.0,
-                "time_end": duration,
-                "score": score,
-                "issue": None if score >= 0.7 else "technique_improvement_needed"
-            })
+            # If we have multiple frames, create segments between them
+            if len(frame_analyses) > 1:
+                for i, (frame_analysis, frame_data) in enumerate(zip(frame_analyses, frames)):
+                    timestamp = frame_data[1]
+                    score = frame_analysis["technique_score"] / 10
+                    
+                    # Calculate segment boundaries
+                    if i == 0:
+                        # First segment: from start to midpoint between first and second frame
+                        next_timestamp = frames[i + 1][1] if i + 1 < len(frames) else total_duration
+                        time_start = 0.0
+                        time_end = (timestamp + next_timestamp) / 2
+                    elif i == len(frame_analyses) - 1:
+                        # Last segment: from midpoint to end
+                        prev_timestamp = frames[i - 1][1]
+                        time_start = (prev_timestamp + timestamp) / 2
+                        time_end = total_duration
+                    else:
+                        # Middle segments: from previous midpoint to next midpoint
+                        prev_timestamp = frames[i - 1][1]
+                        next_timestamp = frames[i + 1][1]
+                        time_start = (prev_timestamp + timestamp) / 2
+                        time_end = (timestamp + next_timestamp) / 2
+                    
+                    segments.append({
+                        "time_start": time_start,
+                        "time_end": time_end,
+                        "score": score,
+                        "issue": None if score >= 0.7 else "technique_improvement_needed"
+                    })
+                    
+                    logger.info(f"Created segment {i+1}: {time_start:.1f}s-{time_end:.1f}s, score: {score:.2f}")
+            else:
+                # Single frame fallback
+                score = frame_analyses[0]["technique_score"] / 10
+                duration = frames[0][1] * 2 if frames else 10.0
+                
+                segments.append({
+                    "time_start": 0.0,
+                    "time_end": duration,
+                    "score": score,
+                    "issue": None if score >= 0.7 else "technique_improvement_needed"
+                })
         
         # Generate difficulty estimate
         difficulty = self._estimate_difficulty(avg_score, sport_type)
