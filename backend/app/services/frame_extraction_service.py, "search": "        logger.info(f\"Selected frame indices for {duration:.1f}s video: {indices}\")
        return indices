@@ -1,0 +1,2 @@
+        logger.info(f\"Selected frame indices for {duration:.1f}s video: {indices}\")
+        return indices

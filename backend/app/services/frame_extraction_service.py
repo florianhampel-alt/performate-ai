@@ -57,7 +57,7 @@ class FrameExtractionService:
                 }
             
             # Extract frames using OpenCV
-            frames = self._extract_frames_opencv(temp_video_path)
+            extraction_result = self._extract_frames_opencv(temp_video_path)
             
             # Clean up temporary file
             if temp_video_path.startswith('/tmp'):
@@ -66,15 +66,10 @@ class FrameExtractionService:
                 except:
                     pass
                     
-            logger.warning(f"🎥 EXTRACTION COMPLETE: {len(frames)} frames from {duration:.1f}s video")
-            # Return frames with metadata including real video duration
-            return {
-                'frames': frames,  # List of (base64_image, timestamp) tuples
-                'video_duration': duration,
-                'total_frames': total_frames,
-                'fps': fps,
-                'success': len(frames) > 0
-            }
+            # extraction_result is now a dict with all metadata
+            logger.warning(f"🎥 EXTRACTION COMPLETE: {len(extraction_result.get('frames', []))} frames from {extraction_result.get('video_duration', 0):.1f}s video")
+            
+            return extraction_result
             
         except Exception as e:
             logger.error(f"Frame extraction failed for {analysis_id}: {str(e)}")
@@ -125,28 +120,38 @@ class FrameExtractionService:
             logger.error(f"Error getting video file: {str(e)}")
             return None
     
-    def _extract_frames_opencv(self, video_path: str) -> List[Tuple[str, float]]:
-        """Extract frames using OpenCV"""
+    def _extract_frames_opencv(self, video_path: str) -> dict:
+        """Extract frames using OpenCV and return metadata"""
         frames = []
+        video_duration = 0
+        total_frames = 0
+        fps = 0
         
         try:
             # Open video
             cap = cv2.VideoCapture(video_path)
             if not cap.isOpened():
                 logger.error(f"Could not open video: {video_path}")
-                return frames
+                return {
+                    'frames': frames,
+                    'video_duration': 0,
+                    'total_frames': 0,
+                    'fps': 0,
+                    'success': False,
+                    'error': 'Could not open video with OpenCV'
+                }
             
             # Get video properties
             total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
             fps = cap.get(cv2.CAP_PROP_FPS)
-            duration = total_frames / fps if fps > 0 else 0
+            video_duration = total_frames / fps if fps > 0 else 0
             
-            logger.warning(f"🎥 VIDEO ANALYSIS: {total_frames} frames, {fps:.2f} FPS, {duration:.1f}s duration")
+            logger.warning(f"🎥 VIDEO ANALYSIS: {total_frames} frames, {fps:.2f} FPS, {video_duration:.1f}s duration")
             logger.warning(f"🎥 VIDEO SIZE: {os.path.getsize(video_path)/(1024*1024):.1f}MB")
             
             # Calculate frame indices to extract
-            frame_indices = self._calculate_frame_indices(total_frames, duration)
-            logger.warning(f"🎥 FRAME EXTRACTION: Will extract {len(frame_indices)} frames from {duration:.1f}s video")
+            frame_indices = self._calculate_frame_indices(total_frames, video_duration)
+            logger.warning(f"🎥 FRAME EXTRACTION: Will extract {len(frame_indices)} frames from {video_duration:.1f}s video")
             
             # Extract frames
             for frame_idx in frame_indices:
@@ -166,8 +171,23 @@ class FrameExtractionService:
             
         except Exception as e:
             logger.error(f"OpenCV frame extraction error: {str(e)}")
+            return {
+                'frames': frames,
+                'video_duration': video_duration,
+                'total_frames': total_frames,
+                'fps': fps,
+                'success': False,
+                'error': str(e)
+            }
             
-        return frames
+        # Return successful result with metadata
+        return {
+            'frames': frames,
+            'video_duration': video_duration,
+            'total_frames': total_frames, 
+            'fps': fps,
+            'success': len(frames) > 0
+        }
     
     def _calculate_frame_indices(self, total_frames: int, duration: float) -> List[int]:
         """Calculate which frames to extract for complete route analysis"""
