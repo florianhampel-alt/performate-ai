@@ -161,6 +161,8 @@ async def debug_cache_analysis(analysis_id: str):
     """Debug endpoint to investigate analysis caching issues"""
     try:
         import datetime
+        import tempfile
+        import os
         
         logger.warning(f"🔍 CACHE DEBUG: Investigating {analysis_id}")
         
@@ -170,20 +172,84 @@ async def debug_cache_analysis(analysis_id: str):
         # Check what's in memory storage
         memory_data = video_storage.get(analysis_id, {})
         
-        # Force a new AI analysis
+        # Generate a fresh analysis using new frame extraction and AI analysis logic
         from app.services.ai_vision_service import ai_vision_service
+        from app.services.frame_extraction_service import frame_extraction_service
+        import cv2
+        import numpy as np
         
         fresh_analysis = None
+        frame_debug_info = {}
+        
         try:
-            logger.warning(f"🔍 Generating fresh analysis for comparison...")
-            fresh_analysis = await ai_vision_service.analyze_climbing_video(
-                video_path=f"/videos/{analysis_id}",
-                analysis_id=analysis_id,
-                sport_type="climbing"
+            logger.warning(f"🔍 Generating fresh analysis with frame extraction for comparison...")
+            
+            # Create a synthetic video for testing (since original video might not exist)
+            # This simulates different video content to test the AI analysis variability
+            with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as temp_video:
+                # Create a simple test video with different patterns
+                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                out = cv2.VideoWriter(temp_video.name, fourcc, 30.0, (640, 480))
+                
+                # Generate frames with varying patterns based on analysis_id
+                seed = hash(analysis_id) % 1000
+                np.random.seed(seed)
+                
+                for i in range(150):  # 5 seconds at 30 fps
+                    # Create varied frame content based on analysis_id and frame number
+                    frame = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
+                    
+                    # Add some climbing-like shapes/patterns
+                    cv2.rectangle(frame, (100 + (i//10)*20, 100), (200 + (i//10)*20, 300), (255, 255, 255), -1)
+                    cv2.circle(frame, (300 + seed//10, 200 + (i//20)*10), 30, (0, 255, 0), -1)
+                    
+                    out.write(frame)
+                
+                out.release()
+                temp_video_path = temp_video.name
+            
+            # Extract frames using the new frame extraction service
+            frames_data = await frame_extraction_service.extract_frames(
+                video_path=temp_video_path,
+                analysis_id=f"debug_{analysis_id}",
+                frame_interval=1.0
             )
-            logger.warning(f"🔍 Fresh analysis total_moves: {fresh_analysis.get('route_analysis', {}).get('total_moves')}")
+            
+            frame_debug_info = {
+                "frames_extracted": len(frames_data.get('frame_paths', [])),
+                "extraction_successful": frames_data.get('success', False),
+                "frame_interval": frames_data.get('frame_interval', 'unknown')
+            }
+            
+            logger.warning(f"🔍 Extracted {len(frames_data.get('frame_paths', []))} frames for debug analysis")
+            
+            # Perform AI analysis on extracted frames
+            if frames_data.get('success') and frames_data.get('frame_paths'):
+                fresh_analysis = await ai_vision_service.analyze_extracted_frames(
+                    frame_paths=frames_data['frame_paths'],
+                    analysis_id=f"debug_{analysis_id}",
+                    sport_type="bouldering"
+                )
+                
+                logger.warning(f"🔍 Fresh analysis completed - total_moves: {fresh_analysis.get('route_analysis', {}).get('total_moves')}")
+            else:
+                logger.warning(f"🔍 Frame extraction failed, falling back to mock analysis")
+                fresh_analysis = {
+                    "route_analysis": {"total_moves": 10},
+                    "performance_score": 70,
+                    "debug_note": "Frame extraction failed - using fallback"
+                }
+            
+            # Clean up temporary video
+            try:
+                os.unlink(temp_video_path)
+            except:
+                pass
+                
         except Exception as fresh_err:
             logger.error(f"🔍 Fresh analysis failed: {fresh_err}")
+            import traceback
+            logger.error(f"🔍 Fresh analysis traceback: {traceback.format_exc()}")
         
         return {
             "analysis_id": analysis_id,
@@ -200,10 +266,12 @@ async def debug_cache_analysis(analysis_id: str):
                 "size_mb": memory_data.get('size', 0) / (1024*1024) if memory_data.get('size') else 0,
                 "storage_type": memory_data.get('storage_type')
             },
+            "frame_debug": frame_debug_info,
             "fresh_analysis": {
                 "generated": fresh_analysis is not None,
                 "total_moves": fresh_analysis.get('route_analysis', {}).get('total_moves') if fresh_analysis else None,
-                "performance_score": fresh_analysis.get('performance_score') if fresh_analysis else None
+                "performance_score": fresh_analysis.get('performance_score') if fresh_analysis else None,
+                "debug_note": fresh_analysis.get('debug_note') if fresh_analysis else None
             },
             "comparison": {
                 "moves_match": (
@@ -221,6 +289,145 @@ async def debug_cache_analysis(analysis_id: str):
     except Exception as e:
         logger.error(f"🔍 CACHE DEBUG failed for {analysis_id}: {str(e)}")
         import traceback
+        return {"error": str(e), "traceback": traceback.format_exc()}
+
+@app.get("/debug/test-variability")
+async def test_ai_variability():
+    """Test if AI analysis produces varied results with different synthetic videos"""
+    try:
+        from app.services.ai_vision_service import ai_vision_service
+        from app.services.frame_extraction_service import frame_extraction_service
+        import tempfile
+        import os
+        import cv2
+        import numpy as np
+        import uuid
+        
+        results = []
+        
+        # Test with 3 different synthetic videos
+        for test_num in range(3):
+            test_id = f"variability_test_{test_num}_{uuid.uuid4().hex[:8]}"
+            
+            logger.warning(f"🧪 VARIABILITY TEST {test_num + 1}: Starting test for {test_id}")
+            
+            # Create a unique synthetic video for each test
+            with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as temp_video:
+                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                out = cv2.VideoWriter(temp_video.name, fourcc, 30.0, (640, 480))
+                
+                # Use different seed for each test to create varied content
+                seed = (test_num + 1) * 123
+                np.random.seed(seed)
+                
+                for i in range(120):  # 4 seconds at 30 fps
+                    # Create unique frame content for each test
+                    frame = np.random.randint(50 + test_num * 50, 200 + test_num * 20, (480, 640, 3), dtype=np.uint8)
+                    
+                    # Add different climbing-like patterns for each test
+                    if test_num == 0:
+                        # Test 1: More rectangular holds
+                        cv2.rectangle(frame, (50 + i//5, 100), (150 + i//5, 200), (255, 255, 255), -1)
+                        cv2.rectangle(frame, (200 + i//8, 250), (300 + i//8, 350), (200, 200, 200), -1)
+                    elif test_num == 1:
+                        # Test 2: More circular holds
+                        cv2.circle(frame, (100 + i//3, 150), 25, (255, 255, 0), -1)
+                        cv2.circle(frame, (300 + i//6, 300), 35, (0, 255, 255), -1)
+                        cv2.circle(frame, (450 + i//4, 200), 20, (255, 0, 255), -1)
+                    else:
+                        # Test 3: Mixed shapes, more complex route
+                        cv2.rectangle(frame, (80 + i//4, 80), (120 + i//4, 120), (255, 255, 255), -1)
+                        cv2.circle(frame, (250 + i//3, 180), 30, (255, 255, 0), -1)
+                        cv2.rectangle(frame, (400 + i//5, 280), (450 + i//5, 330), (0, 255, 0), -1)
+                        cv2.circle(frame, (150 + i//6, 350), 25, (0, 0, 255), -1)
+                    
+                    out.write(frame)
+                
+                out.release()
+                temp_video_path = temp_video.name
+            
+            try:
+                # Extract frames
+                frames_data = await frame_extraction_service.extract_frames(
+                    video_path=temp_video_path,
+                    analysis_id=test_id,
+                    frame_interval=1.0
+                )
+                
+                # Perform AI analysis
+                if frames_data.get('success') and frames_data.get('frame_paths'):
+                    analysis_result = await ai_vision_service.analyze_extracted_frames(
+                        frame_paths=frames_data['frame_paths'],
+                        analysis_id=test_id,
+                        sport_type="bouldering"
+                    )
+                    
+                    route_analysis = analysis_result.get('route_analysis', {})
+                    
+                    results.append({
+                        "test_id": test_id,
+                        "test_number": test_num + 1,
+                        "frames_extracted": len(frames_data.get('frame_paths', [])),
+                        "total_moves": route_analysis.get('total_moves'),
+                        "performance_score": analysis_result.get('performance_score'),
+                        "route_points": len(route_analysis.get('ideal_route', [])),
+                        "key_insights_count": len(route_analysis.get('key_insights', [])),
+                        "success": True
+                    })
+                    
+                    logger.warning(f"🧪 Test {test_num + 1} result - moves: {route_analysis.get('total_moves')}, score: {analysis_result.get('performance_score')}")
+                else:
+                    results.append({
+                        "test_id": test_id,
+                        "test_number": test_num + 1,
+                        "success": False,
+                        "error": "Frame extraction failed"
+                    })
+                
+                # Clean up
+                try:
+                    os.unlink(temp_video_path)
+                except:
+                    pass
+                    
+            except Exception as test_err:
+                logger.error(f"🧪 Test {test_num + 1} failed: {test_err}")
+                results.append({
+                    "test_id": test_id,
+                    "test_number": test_num + 1,
+                    "success": False,
+                    "error": str(test_err)
+                })
+        
+        # Analyze variability
+        successful_results = [r for r in results if r.get('success')]
+        if len(successful_results) > 1:
+            moves_values = [r.get('total_moves') for r in successful_results if r.get('total_moves') is not None]
+            score_values = [r.get('performance_score') for r in successful_results if r.get('performance_score') is not None]
+            
+            variability_analysis = {
+                "moves_unique_values": len(set(moves_values)) if moves_values else 0,
+                "moves_range": f"{min(moves_values)}-{max(moves_values)}" if moves_values else "N/A",
+                "scores_unique_values": len(set(score_values)) if score_values else 0,
+                "scores_range": f"{min(score_values)}-{max(score_values)}" if score_values else "N/A",
+                "all_identical": len(set(moves_values)) == 1 and len(set(score_values)) == 1 if moves_values and score_values else None
+            }
+        else:
+            variability_analysis = {"insufficient_data": "Not enough successful results to analyze variability"}
+        
+        return {
+            "status": "completed",
+            "total_tests": 3,
+            "successful_tests": len(successful_results),
+            "test_results": results,
+            "variability_analysis": variability_analysis,
+            "message": "Check if AI analysis produces varied results for different synthetic climbing videos"
+        }
+        
+    except Exception as e:
+        logger.error(f"🧪 VARIABILITY TEST failed: {str(e)}")
+        import traceback
+        logger.error(f"🧪 Traceback: {traceback.format_exc()}")
         return {"error": str(e), "traceback": traceback.format_exc()}
 
 @app.get("/debug/force-ai/{analysis_id}")
