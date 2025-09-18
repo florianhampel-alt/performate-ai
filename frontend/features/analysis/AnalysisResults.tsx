@@ -416,8 +416,7 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
                       }`} />
                       <span className="text-sm text-gray-600">
                         {data.status === 'good' ? 'gut' : 
-                         data.status === 'needs_improvement' ? 'verbesserung nötig' : 
-                         data.status === 'needs improvement' ? 'verbesserung nötig' : 
+                         data.status === 'needs_improvement' || data.status === 'needs improvement' ? 'verbesserung nötig' : 
                          data.status || 'nicht analysiert'}
                       </span>
                     </div>
