@@ -96,7 +96,9 @@ class AIVisionService:
             # COST CONTROL: Check if AI analysis is enabled
             if not self.ai_analysis_enabled:
                 logger.error(f"❌ AI Analysis DISABLED - Cannot provide real analysis data")
-                raise Exception("AI Analysis is disabled. Enable ENABLE_AI_ANALYSIS=true for real data.")
+                logger.error(f"🔧 To fix: Set environment variable ENABLE_AI_ANALYSIS=true on your deployment platform")
+                logger.error(f"🔑 Also ensure OPENAI_API_KEY is set with a valid OpenAI API key")
+                raise Exception("AI Analysis is disabled. Set ENABLE_AI_ANALYSIS=true and provide valid OPENAI_API_KEY for real data.")
             
             logger.info(f"Analyzing {len(frames)} frames with GPT-4 Vision (AI ENABLED)")
             
