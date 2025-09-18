@@ -203,9 +203,43 @@ class AIVisionService:
         """Parse GPT-4 Vision response into structured data"""
         logger.warning(f"🔍 PARSING AI RESPONSE: '{analysis_text[:300]}...'")  # Show first 300 chars
         try:
-            # Extract technique score using regex
-            score_match = re.search(r'(?:score|rate|rating)[:\s]+(\d+(?:\.\d+)?)', analysis_text, re.IGNORECASE)
-            technique_score = float(score_match.group(1)) if score_match else 7.0
+            # Extract technique score using comprehensive German/English patterns
+            logger.warning(f"🎯 SCORE EXTRACTION: Searching for technique score in:\n{analysis_text}")
+            
+            technique_score = 7.0  # Default fallback
+            
+            # German patterns (from the prompt format)
+            score_patterns = [
+                r'technik[\-\s]*bewertung.*?[:\s]+(\d+)\s*[\/\s]*(?:10|\d+)',  # "TECHNIK-BEWERTUNG: 8/10" or "TECHNIK-BEWERTUNG: 8"
+                r'bewertung.*?[:\s]+(\d+)\s*[\/\s]*(?:10|\d+)',  # "Bewertung: 8/10"
+                r'(\d+)\s*[\/\s]+10',  # "8/10" or "8 / 10"
+                r'(\d+)\s*[\/\s]+\d+',  # "8/10" (any denominator)
+                r'score.*?[:\s]+(\d+)',  # "score: 8"
+                r'rating.*?[:\s]+(\d+)',  # "rating: 8"
+                r'rate.*?[:\s]+(\d+)',  # "rate: 8"
+                r'qualität.*?[:\s]+(\d+)',  # "Qualität: 8"
+                r'note.*?[:\s]+(\d+)',  # "Note: 8"
+                r'punkte.*?[:\s]+(\d+)',  # "Punkte: 8"
+                r'\b(\d+)\s*punkte\b',  # "8 Punkte"
+                r'\b([1-9]|10)\b.*(?:von|out of|/).*10',  # "8 von 10" or "8 out of 10"
+            ]
+            
+            for i, pattern in enumerate(score_patterns):
+                match = re.search(pattern, analysis_text, re.IGNORECASE)
+                logger.warning(f"🔍 Score Pattern {i+1}: '{pattern}' -> {'MATCH: ' + match.group(0) if match else 'no match'}")
+                if match:
+                    extracted_score = float(match.group(1))
+                    logger.warning(f"🎯 Score Pattern {i+1} matched: '{match.group(0)}' -> score: {extracted_score}")
+                    # Validate reasonable range for technique score (1-10)
+                    if 1 <= extracted_score <= 10:
+                        technique_score = extracted_score
+                        logger.warning(f"✅ AI detected technique score: {technique_score}/10 from pattern: '{match.group(0)}'")
+                        break
+                    else:
+                        logger.warning(f"❌ Score {extracted_score} out of range (1-10), trying next pattern")
+            
+            if technique_score == 7.0:
+                logger.warning(f"⚠️ Could not extract technique score from AI response, using default: {technique_score}")
             
             # Extract move count from AI response
             move_count = self._extract_move_count(analysis_text)
