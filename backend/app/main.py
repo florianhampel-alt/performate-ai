@@ -615,25 +615,41 @@ async def get_analysis_results(analysis_id: str):
         # Generate overlay data if it exists in analysis result
         overlay_data = analysis_result.get('overlay_data', {"has_overlay": False})
         
-        # Return formatted response with overlay data included
+        # CRITICAL FIX: Include the complete route_analysis object that frontend expects
+        route_analysis = analysis_result.get('route_analysis', {})
+        
+        # Return formatted response with AI Vision data included
         return {
             "id": analysis_id,
-            "sport_type": analysis_result.get('sport_detected', 'climbing'),
-            "analyzer_type": "intelligent_analysis",
+            "sport_type": analysis_result.get('sport_type', 'climbing'),
+            "analyzer_type": "ai_vision_analysis",
             "overall_performance_score": analysis_result.get('performance_score', 70) / 100,
-            "video_url": f"/videos/{analysis_id}",  # Add video URL for playback
+            "video_url": f"/videos/{analysis_id}",
             "comprehensive_insights": [
                 {
                     "category": "technique",
                     "level": "info",
                     "message": insight,
                     "priority": "medium"
-                } for insight in analysis_result.get('key_insights', [])
+                } for insight in route_analysis.get('key_insights', [])
             ],
             "unified_recommendations": analysis_result.get('recommendations', []),
+            
+            # 🎯 CRITICAL: Include the route_analysis object that frontend expects for total_moves!
+            "route_analysis": {
+                "route_detected": route_analysis.get('route_detected', True),
+                "difficulty_estimated": route_analysis.get('difficulty_estimated', 'Unknown'),
+                "total_moves": route_analysis.get('total_moves', 0),  # ⭐ This is what frontend needs!
+                "ideal_route": route_analysis.get('ideal_route', []),
+                "performance_segments": route_analysis.get('performance_segments', []),
+                "overall_score": route_analysis.get('overall_score', 70),
+                "key_insights": route_analysis.get('key_insights', []),
+                "recommendations": route_analysis.get('recommendations', [])
+            },
+            
             "sport_specific_analysis": {
-                "sport_type": analysis_result.get('sport_detected', 'climbing'),
-                "difficulty_grade": analysis_result.get('difficulty_grade', '4a'),
+                "sport_type": analysis_result.get('sport_type', 'climbing'),
+                "difficulty_grade": route_analysis.get('difficulty_estimated', '4a'),
                 "key_metrics": {
                     "balance": {
                         "status": "good" if analysis_result.get('detailed_metrics', {}).get('balance_score', 0.5) > 0.7 else "needs_improvement",
@@ -656,19 +672,19 @@ async def get_analysis_results(analysis_id: str):
             },
             "analysis_summary": {
                 "analyzers_used": 1,
-                "total_insights": len(analysis_result.get('key_insights', [])),
+                "total_insights": len(route_analysis.get('key_insights', [])),
                 "recommendations_count": len(analysis_result.get('recommendations', [])),
                 "overall_score": analysis_result.get('performance_score', 70)
             },
             "metadata": {
-                "analysis_type": "climbing_intelligent_analysis",
+                "analysis_type": "ai_vision_climbing_analysis",
                 "timestamp": analysis_id[:8] + "-" + analysis_id[8:12] + "-" + analysis_id[12:16] + "-" + analysis_id[16:20] + "-" + analysis_id[20:]
             },
             # Add overlay data directly to analysis response
             "overlay_data": overlay_data,
             "has_route_overlay": overlay_data.get("has_overlay", False),
-            "enhanced_insights": analysis_result.get('route_analysis', {}).get('key_insights', []),
-            "difficulty_estimated": analysis_result.get('route_analysis', {}).get('difficulty_estimated', 'Unknown')
+            "enhanced_insights": route_analysis.get('key_insights', []),
+            "difficulty_estimated": route_analysis.get('difficulty_estimated', 'Unknown')
         }
             
     except Exception as e:
