@@ -31,11 +31,15 @@ allowed_origins = [
     "http://127.0.0.1:3000",    # Local development  
     "https://performate-ai.vercel.app",
     "https://www.performate-ai.com",
-    "https://frontend-khx7r2ks6-flos-projects-6a1ae6b3.vercel.app"  # Current deployment
+    "https://frontend-khx7r2ks6-flos-projects-6a1ae6b3.vercel.app",  # Old deployment
+    "https://performate-4te8mge8h-flos-projects-6a1ae6b3.vercel.app",  # Previous deployment
+    "https://frontend-7ew57yoop-flos-projects-6a1ae6b3.vercel.app"    # Current deployment
 ] if settings.DEBUG else [
     "https://performate-ai.vercel.app",
     "https://www.performate-ai.com",
-    "https://frontend-khx7r2ks6-flos-projects-6a1ae6b3.vercel.app"  # Current deployment
+    "https://frontend-khx7r2ks6-flos-projects-6a1ae6b3.vercel.app",  # Old deployment
+    "https://performate-4te8mge8h-flos-projects-6a1ae6b3.vercel.app",  # Previous deployment
+    "https://frontend-7ew57yoop-flos-projects-6a1ae6b3.vercel.app"    # Current deployment
     # Remove wildcard for production security
 ]
 
