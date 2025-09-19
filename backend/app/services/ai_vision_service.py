@@ -271,10 +271,11 @@ class AIVisionService:
             if technique_score is None:
                 logger.error(f"❌ Could not extract technique score from AI response")
                 
-                # Intelligent fallback: detect if AI is giving guidance and use frame position for scoring
+                # Intelligent fallback: detect if AI is refusing analysis 
                 if any(phrase in analysis_text.lower() for phrase in [
                     "unable to analyze", "can't analyze", "cannot analyze", 
-                    "guide you", "general template", "hypothetical", "provide a general"
+                    "guide you", "general template", "hypothetical", "provide a general",
+                    "sorry", "can't assist", "cannot assist", "i'm sorry"
                 ]):
                     # AI is refusing analysis - use timestamp-based intelligent scoring
                     # Earlier frames often show better technique (fresh start)
@@ -388,7 +389,8 @@ class AIVisionService:
         # Check if AI is refusing analysis or giving guidance
         if any(phrase in text.lower() for phrase in [
             "unable to analyze", "can't analyze", "cannot analyze", 
-            "guide you", "general template", "hypothetical", "provide a general"
+            "guide you", "general template", "hypothetical", "provide a general",
+            "sorry", "can't assist", "cannot assist", "i'm sorry"
         ]):
             # AI is refusing - estimate based on common climbing routes
             move_count = 12  # Typical indoor climbing route
@@ -461,7 +463,8 @@ class AIVisionService:
         # Check if AI is refusing analysis or giving guidance
         if any(phrase in text.lower() for phrase in [
             "unable to analyze", "can't analyze", "cannot analyze", 
-            "guide you", "general template", "hypothetical", "provide a general"
+            "guide you", "general template", "hypothetical", "provide a general",
+            "sorry", "can't assist", "cannot assist", "i'm sorry"
         ]):
             # AI is refusing - estimate based on hold types mentioned or use moderate difficulty
             if any(word in text.lower() for word in ['crimp', 'sloper', 'pinch']):
