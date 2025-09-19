@@ -83,7 +83,7 @@ class FrameExtractionService:
             }
     
     async def _get_video_file(self, video_path: str, analysis_id: str) -> Optional[str]:
-        """Get video file path (download from S3 if needed)"""
+        """Get video file path (download from S3 or memory storage if needed)"""
         try:
             # Check if this is an S3 key (starts with 'videos/' or '/videos/')
             if video_path.startswith('videos/') or video_path.startswith('/videos/'):
@@ -96,7 +96,7 @@ class FrameExtractionService:
                 os.close(temp_fd)
                 
                 # Download from S3
-                logger.info(f"📯 Downloading video from S3: {s3_key} -> {temp_path}")
+                logger.info(f"📦 Downloading video from S3: {s3_key} -> {temp_path}")
                 success = await s3_service.download_file(s3_key, temp_path)
                 if success:
                     file_size = os.path.getsize(temp_path) if os.path.exists(temp_path) else 0
@@ -104,20 +104,53 @@ class FrameExtractionService:
                     return temp_path
                 else:
                     logger.error(f"❌ Failed to download video from S3: {s3_key}")
-                    # Check if S3 service is enabled
-                    if not s3_service.enabled:
-                        logger.error(f"⚠️ S3 service is disabled - check AWS credentials")
-                    return None
+                    
+                    # FALLBACK: Try memory storage if S3 fails
+                    logger.warning(f"🔄 S3 failed, trying memory storage for {analysis_id}")
+                    return await self._get_video_from_memory(analysis_id)
             else:
                 # Local video path
                 if os.path.exists(video_path):
                     return video_path
                 else:
                     logger.error(f"Video file not found: {video_path}")
-                    return None
+                    # FALLBACK: Try memory storage if local file not found
+                    logger.warning(f"🔄 Local file not found, trying memory storage for {analysis_id}")
+                    return await self._get_video_from_memory(analysis_id)
                     
         except Exception as e:
             logger.error(f"Error getting video file: {str(e)}")
+            return None
+    
+    async def _get_video_from_memory(self, analysis_id: str) -> Optional[str]:
+        """Try to get video from memory storage and write to temp file"""
+        try:
+            # Import video_storage from main module
+            from app.main import video_storage
+            
+            if analysis_id in video_storage:
+                video_info = video_storage[analysis_id]
+                video_content = video_info.get('content')
+                
+                if video_content:
+                    # Create temp file and write content
+                    temp_fd, temp_path = tempfile.mkstemp(suffix='.mp4')
+                    
+                    with os.fdopen(temp_fd, 'wb') as temp_file:
+                        temp_file.write(video_content)
+                    
+                    file_size = len(video_content)
+                    logger.info(f"✅ Memory storage retrieval successful: {file_size/(1024*1024):.1f}MB -> {temp_path}")
+                    return temp_path
+                else:
+                    logger.error(f"❌ Video content not found in memory storage for {analysis_id}")
+                    return None
+            else:
+                logger.error(f"❌ Analysis ID {analysis_id} not found in memory storage")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error retrieving video from memory storage: {str(e)}")
             return None
     
     def _extract_frames_opencv(self, video_path: str) -> dict:
