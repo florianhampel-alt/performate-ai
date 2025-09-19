@@ -291,33 +291,24 @@ class FrameExtractionService:
     def get_frame_analysis_prompt(self, sport_type: str = "climbing") -> str:
         """AI prompt focused on visual analysis to reduce hallucinations"""
         if sport_type in ['climbing', 'bouldering']:
-            return """CRITICAL: You are analyzing a climbing video frame. The climber follows ONE specific route color. Your job is to identify which color the climber is actually USING (touching/gripping).
+            return """You are analyzing a climbing video frame. Please analyze what you can see and provide a structured assessment.
 
-Analyze this frame:
+Please provide your analysis in this format:
 
-1. CLIMBER POSITION: Where are the climber's hands and feet positioned?
-2. ROUTE COLOR IDENTIFICATION: What color holds is the climber actually gripping/standing on? (This is the route color - ignore other colors on the wall)
-3. HOLD TYPES: What types of holds does the climber use (jugs, crimps, slopers, pinches)?
-4. MOVEMENT ANALYSIS: How is the climber moving between holds?
+1. TECHNIQUE RATING: [score]/10
+2. ROUTE COLOR: [main color of holds being used]
+3. VISIBLE MOVES IN FRAME: [number] moves
+4. HOLD TYPES ON ROUTE: [types of holds visible]
+5. VISUAL DIFFICULTY: [score]/10
+6. MOVEMENT QUALITY: [brief assessment]
 
-Provide assessment in this EXACT format:
-
-1. TECHNIQUE RATING: [1-10]/10
-2. ROUTE COLOR: [the ONE color the climber is actually using]
-3. VISIBLE MOVES IN FRAME: [1-5] moves
-4. HOLD TYPES ON ROUTE: [describe the holds the climber is actually using]
-5. VISUAL DIFFICULTY: [1-10]/10 (based on hold types and spacing of the route color)
-6. MOVEMENT QUALITY: [climber's technique assessment]
-
-Example format:
+Example:
 1. TECHNIQUE RATING: 7/10
 2. ROUTE COLOR: white
 3. VISIBLE MOVES IN FRAME: 3 moves
-4. HOLD TYPES ON ROUTE: White jugs and crimps that climber is gripping
+4. HOLD TYPES ON ROUTE: Large holds and smaller grips
 5. VISUAL DIFFICULTY: 5/10
-6. MOVEMENT QUALITY: Good body positioning
-
-IMPORTANT: Focus only on the holds the climber is actually touching/using, not all colors visible on the wall."""
+6. MOVEMENT QUALITY: Balanced positioning"""
         else:
             return f"Analyze {sport_type}: rate 1-10, count total moves as number, brief tip."
 
