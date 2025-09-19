@@ -230,15 +230,18 @@ class AIVisionService:
             
             technique_score = None  # No fallback - require real AI data
             
-            # German patterns (from the prompt format)
+            # New English patterns (from updated prompt format) - FIRST PRIORITY
             score_patterns = [
-                r'technik[\-\s]*bewertung.*?[:\s]+(\d+)\s*[\/\s]*(?:10|\d+)',  # "TECHNIK-BEWERTUNG: 8/10" or "TECHNIK-BEWERTUNG: 8"
-                r'bewertung.*?[:\s]+(\d+)\s*[\/\s]*(?:10|\d+)',  # "Bewertung: 8/10"
+                r'technique rating.*?[:\s]+(\d+)\s*[\/\s]*(?:10|\d+)',  # "TECHNIQUE RATING: 8/10"
+                r'technique.*?[:\s]+(\d+)\s*[\/\s]*(?:10|\d+)',  # "TECHNIQUE: 8/10"
+                r'rating.*?[:\s]+(\d+)\s*[\/\s]*(?:10|\d+)',  # "RATING: 8/10"
                 r'(\d+)\s*[\/\s]+10',  # "8/10" or "8 / 10"
                 r'(\d+)\s*[\/\s]+\d+',  # "8/10" (any denominator)
+                
+                # Original German patterns (backup)
+                r'technik[\-\s]*bewertung.*?[:\s]+(\d+)\s*[\/\s]*(?:10|\d+)',  # "TECHNIK-BEWERTUNG: 8/10"
+                r'bewertung.*?[:\s]+(\d+)\s*[\/\s]*(?:10|\d+)',  # "Bewertung: 8/10"
                 r'score.*?[:\s]+(\d+)',  # "score: 8"
-                r'rating.*?[:\s]+(\d+)',  # "rating: 8"
-                r'rate.*?[:\s]+(\d+)',  # "rate: 8"
                 r'qualität.*?[:\s]+(\d+)',  # "Qualität: 8"
                 r'note.*?[:\s]+(\d+)',  # "Note: 8"
                 r'punkte.*?[:\s]+(\d+)',  # "Punkte: 8"
@@ -304,9 +307,15 @@ class AIVisionService:
         """Extract move count from AI analysis text with enhanced patterns"""
         logger.warning(f"🔍 MOVE EXTRACTION: Full AI text to analyze:\n{text}")
         
-        # Look for move count patterns (German + English + more variations)
+        # Look for move count patterns (English first, then German)
         move_patterns = [
-            # German patterns (most specific first)
+            # New English patterns (from updated prompt) - FIRST PRIORITY
+            r'estimated total moves.*?[:\s]+(\d+)',  # "ESTIMATED TOTAL MOVES: 12"
+            r'total moves.*?[:\s]+(\d+)',  # "TOTAL MOVES: 12"
+            r'(\d+)\s*moves?\b',  # "12 moves" (most likely format)
+            r'moves.*?[:\s]+(\d+)',  # "MOVES: 12"
+            
+            # German patterns (backup)
             r'geschätzte gesamtzahl züge.*?[:\s]+(\d+)',  # "GESCHÄTZTE GESAMTZAHL ZÜGE: 8"
             r'gesamtzahl züge.*?[:\s]+(\d+)',  # "GESAMTZAHL ZÜGE IN DER ROUTE: 8"
             r'züge.*?[:\s]+(\d+)',  # "Züge: 8"
@@ -315,7 +324,7 @@ class AIVisionService:
             r'route.*?(\d+)\s*züge?',  # "route hat 8 Züge"
             r'(\d+)\s*griffe?',  # "8 Griffe" (griffe ≈ moves)
             
-            # English patterns (most specific first)
+            # Original English patterns
             r'total moves.*?[:\s]+(\d+)',  # "Total moves: 8"
             r'estimated.*?total.*?[:\s]+(\d+)',  # "Estimated total: 8"
             r'complete.*?route.*?[:\s]+(\d+)\s*moves?',  # "Complete route: 8 moves"
@@ -358,9 +367,14 @@ class AIVisionService:
         """Extract visual difficulty rating from AI analysis text"""
         logger.warning(f"🔍 DIFFICULTY EXTRACTION: Full AI text to analyze:\n{text}")
         
-        # Look for visual difficulty patterns (German + English)
+        # Look for visual difficulty patterns (English first, then German)
         difficulty_patterns = [
-            # German patterns (most specific first)
+            # New English patterns (from updated prompt) - FIRST PRIORITY
+            r'route difficulty.*?[:\s]+(\d+(?:\.\d+)?)\s*[\/\s]*(?:10|\d+)',  # "ROUTE DIFFICULTY: 6/10"
+            r'difficulty.*?[:\s]+(\d+(?:\.\d+)?)\s*[\/\s]*(?:10|\d+)',  # "DIFFICULTY: 6/10"
+            r'(\d+(?:\.\d+)?)\s*[\/\s]+10',  # "6/10" format
+            
+            # German patterns (backup)
             r'visuelle schwierigkeit.*?[:\s]+(\d+(?:\.\d+)?)',  # "VISUELLE SCHWIERIGKEIT: 7.5"
             r'schwierigkeit.*?[:\s]+(\d+(?:\.\d+)?)',  # "Schwierigkeit: 7"
             r'schwierigkeitsgrad.*?[:\s]+(\d+(?:\.\d+)?)',  # "Schwierigkeitsgrad: 6.5"

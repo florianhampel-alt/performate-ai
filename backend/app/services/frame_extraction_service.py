@@ -256,28 +256,28 @@ class FrameExtractionService:
             return None
     
     def get_frame_analysis_prompt(self, sport_type: str = "climbing") -> str:
-        """ULTRA EXPLICIT prompt for move counting with permission to analyze people for coaching"""
+        """Force AI to analyze by focusing on route/wall instead of people"""
         if sport_type in ['climbing', 'bouldering']:
-            return """Du bist ein professioneller Klettertrainer. Analysiere diese Kletter-/Boulder-Szene für COACHING-ZWECKE. Das Analysieren von Personen ist hier erwünscht und notwendig für die Trainingsauswertung.
+            return """Analyze this rock climbing wall and route setup. Focus ONLY on the holds, route, and climbing technique visible.
 
-ANTWORTE ZWINGEND MIT EXAKTEN ZAHLEN:
+Provide EXACT numbers for:
 
-1. TECHNIK-BEWERTUNG: [Zahl von 1-10 basierend auf Körperposition, Balance, Effizienz der Person]
-2. GESCHÄTZTE GESAMTZAHL ZÜGE: [schätze die komplette Route - Antwort im Format "12 Züge"]
-3. ROUTE-SCHWIERIGKEIT VISUELL: [analysiere Griffe und Route - Antwort als Zahl 1-10]
-4. GRIFF-ANALYSE: [beschreibe sichtbare Griffe]
-5. BEWEGUNGSQUALITÄT: [bewerte die Kletterbewegung der Person]
-6. COACHING-TIPP: [konkreter Verbesserungsvorschlag]
+1. TECHNIQUE RATING: [Rate the visible climbing movement/position from 1-10]
+2. ESTIMATED TOTAL MOVES: [Count how many moves this complete route likely has - answer like "12 moves"]
+3. ROUTE DIFFICULTY: [Rate the route difficulty from 1-10 based on holds and angles]
+4. HOLD ANALYSIS: [Describe visible holds and colors]
+5. MOVEMENT QUALITY: [Rate the climbing technique shown]
+6. TRAINING TIP: [Give specific advice]
 
-PFLICHT-BEISPIEL-FORMAT:
-1. TECHNIK-BEWERTUNG: 8/10
-2. GESCHÄTZTE GESAMTZAHL ZÜGE: 12 Züge  
-3. ROUTE-SCHWIERIGKEIT VISUELL: 6
-4. GRIFF-ANALYSE: Rote Route mit Crimps
-5. BEWEGUNGSQUALITÄT: Gute Balance
-6. COACHING-TIPP: Hüfte näher zur Wand
+MUST follow this EXACT format:
+1. TECHNIQUE RATING: 8/10
+2. ESTIMATED TOTAL MOVES: 12 moves
+3. ROUTE DIFFICULTY: 6/10
+4. HOLD ANALYSIS: Red holds with crimps
+5. MOVEMENT QUALITY: Good balance
+6. TRAINING TIP: Keep hips closer to wall
 
-Deine Trainer-Analyse:"""
+Your analysis:"""
         else:
             return f"Analyze {sport_type}: rate 1-10, count total moves as number, brief tip."
 
