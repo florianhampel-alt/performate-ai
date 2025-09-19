@@ -222,7 +222,8 @@ class AIVisionService:
     
     def _parse_frame_analysis(self, analysis_text: str, timestamp: float) -> Dict[str, Any]:
         """Parse GPT-4 Vision response into structured data"""
-        logger.warning(f"🔍 PARSING AI RESPONSE: '{analysis_text[:300]}...'")  # Show first 300 chars
+        logger.warning(f"🔍 PARSING AI RESPONSE: '{analysis_text[:300]}...'")
+        logger.warning(f"📝 FULL RAW AI RESPONSE:\n{analysis_text}")  # Show complete response for debugging
         try:
             # Extract technique score using comprehensive German/English patterns
             logger.warning(f"🎯 SCORE EXTRACTION: Searching for technique score in:\n{analysis_text}")
@@ -262,6 +263,7 @@ class AIVisionService:
             if technique_score is None:
                 logger.error(f"❌ Could not extract technique score from AI response")
                 logger.warning(f"⚠️ EMERGENCY: Using fallback technique score 7.0 to prevent system failure")
+                logger.warning(f"🔍 AI RESPONSE THAT FAILED PARSING: '{analysis_text}'")
                 technique_score = 7.0  # Emergency fallback only
             
             # Extract move count from AI response
