@@ -93,20 +93,56 @@ class S3Service:
             chunk_size = 8 * 1024 * 1024  # 8MB chunks
             total_read = 0
             
-            while True:
-                chunk = await video_stream.read(chunk_size)
-                if not chunk:
-                    break
-                file_buffer.write(chunk)
-                total_read += len(chunk)
-                
-                if total_read % (32 * 1024 * 1024) == 0:  # Log every 32MB
-                    logger.info(f"Read {total_read/(1024*1024):.1f}MB so far...")
-                
-                # Safety check
-                if total_read > file_size * 1.2:  # 20% tolerance
-                    logger.warning(f"Read more data than expected: {total_read} vs {file_size}")
-                    break
+            try:
+                while True:
+                    # Handle both sync and async file reads
+                    if hasattr(video_stream, 'read'):
+                        if asyncio.iscoroutinefunction(video_stream.read):
+                            chunk = await video_stream.read(chunk_size)
+                        else:
+                            chunk = video_stream.read(chunk_size)
+                    else:
+                        # Fallback for file-like objects without read method
+                        logger.warning("Stream doesn't have read method, trying direct access")
+                        chunk = video_stream
+                        
+                    if not chunk:
+                        break
+                    
+                    # Handle bytes vs string data
+                    if isinstance(chunk, str):
+                        chunk = chunk.encode('utf-8')
+                        
+                    file_buffer.write(chunk)
+                    total_read += len(chunk)
+                    
+                    if total_read % (32 * 1024 * 1024) == 0:  # Log every 32MB
+                        logger.info(f"Read {total_read/(1024*1024):.1f}MB so far...")
+                    
+                    # Safety check
+                    if total_read > file_size * 1.2 and file_size > 0:  # 20% tolerance
+                        logger.warning(f"Read more data than expected: {total_read} vs {file_size}")
+                        break
+                        
+                    # For single chunk (non-streaming), break after first read
+                    if not hasattr(video_stream, 'read') or total_read >= file_size:
+                        break
+                        
+            except Exception as read_error:
+                logger.error(f"Error reading video stream: {str(read_error)}")
+                # Try fallback: read entire content at once
+                try:
+                    if hasattr(video_stream, 'read'):
+                        content = video_stream.read()
+                        if content:
+                            file_buffer.write(content)
+                            total_read = len(content)
+                            logger.info(f"Fallback read successful: {total_read/(1024*1024):.1f}MB")
+                    else:
+                        raise read_error
+                except Exception as fallback_error:
+                    logger.error(f"Fallback read also failed: {str(fallback_error)}")
+                    raise Exception(f"Could not read video stream: {str(read_error)}")
             
             file_buffer.seek(0)  # Reset to beginning
             logger.info(f"File stream read complete: {total_read/(1024*1024):.1f}MB")
