@@ -967,9 +967,11 @@ async def get_analysis_results(analysis_id: str):
                 logger.warning(f"🚨 Video in storage but no S3 key - using default path")
         else:
             # Try to reconstruct S3 key from analysis_id
+            # CRITICAL FIX: Remove URL encoding artifacts like :1, :2, etc.
+            clean_analysis_id = analysis_id.split(':')[0]  # Remove :1, :2, etc.
             from datetime import datetime
             today = datetime.now().strftime("%Y/%m/%d")
-            reconstructed_s3_key = f"videos/{today}/{analysis_id}.mp4"
+            reconstructed_s3_key = f"videos/{today}/{clean_analysis_id}.mp4"
             logger.warning(f"🔄 RECONSTRUCTING S3 key (upload-complete not called): {reconstructed_s3_key}")
             video_path = reconstructed_s3_key
         

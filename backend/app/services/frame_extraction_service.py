@@ -256,28 +256,28 @@ class FrameExtractionService:
             return None
     
     def get_frame_analysis_prompt(self, sport_type: str = "climbing") -> str:
-        """ULTRA EXPLICIT prompt for move counting"""
+        """ULTRA EXPLICIT prompt for move counting with permission to analyze people for coaching"""
         if sport_type in ['climbing', 'bouldering']:
-            return """Analysiere dieses Kletter-/Boulder-Frame als Teil einer kompletten Route. MUSS mit exakten Zahlen antworten:
+            return """Du bist ein professioneller Klettertrainer. Analysiere diese Kletter-/Boulder-Szene für COACHING-ZWECKE. Das Analysieren von Personen ist hier erwünscht und notwendig für die Trainingsauswertung.
 
-1. TECHNIK-BEWERTUNG für diesen Abschnitt: [Zahl von 1-10 basierend auf Körperposition, Balance, Effizienz]
-2. GESCHÄTZTE GESAMTZAHL ZÜGE IN DER KOMPLETTEN ROUTE: [schätze die komplette Route von Start bis Top - "8 Züge" bis "15 Züge"]
-3. ROUTE-SCHWIERIGKEIT VISUELL: [analysiere die Griff-Farben, Griff-Formen und Route-Anordnung. Schätze den Schwierigkeitsgrad: "4a", "5b", "6a+", "6c", "7a", etc.]
-4. GRIFF-FARBE UND TYP: [welche Farbe haben die Griffe? z.B. "Gelbe Route - Crimps und Jugs" oder "Blaue Route - Slopers und Pinches"]
-5. GRIFF-ANALYSE: [beschreibe sichtbare Griffe und deren Schwierigkeit]
-6. BEWEGUNGSQUALITÄT: [bewerte Balance, Flüssigkeit, Effizienz in diesem Moment]
-7. SPEZIFISCHER TIPP: [eine konkrete Verbesserung für diesen Bewegungsabschnitt]
+ANTWORTE ZWINGEND MIT EXAKTEN ZAHLEN:
 
-BEISPIEL:
+1. TECHNIK-BEWERTUNG: [Zahl von 1-10 basierend auf Körperposition, Balance, Effizienz der Person]
+2. GESCHÄTZTE GESAMTZAHL ZÜGE: [schätze die komplette Route - Antwort im Format "12 Züge"]
+3. ROUTE-SCHWIERIGKEIT VISUELL: [analysiere Griffe und Route - Antwort als Zahl 1-10]
+4. GRIFF-ANALYSE: [beschreibe sichtbare Griffe]
+5. BEWEGUNGSQUALITÄT: [bewerte die Kletterbewegung der Person]
+6. COACHING-TIPP: [konkreter Verbesserungsvorschlag]
+
+PFLICHT-BEISPIEL-FORMAT:
 1. TECHNIK-BEWERTUNG: 8/10
-2. GESCHÄTZTE GESAMTZAHL ZÜGE: 12 Züge
-3. ROUTE-SCHWIERIGKEIT VISUELL: 6a
-4. GRIFF-FARBE UND TYP: Rote Route - Crimps und Slopers
-5. GRIFF-ANALYSE: Kleine Crimps und rutschige Slopers, hoher Schwierigkeitsgrad
-6. BEWEGUNGSQUALITÄT: Gute Balance, statische Bewegung
-7. SPEZIFISCHER TIPP: Hüfte näher zur Wand für bessere Balance
+2. GESCHÄTZTE GESAMTZAHL ZÜGE: 12 Züge  
+3. ROUTE-SCHWIERIGKEIT VISUELL: 6
+4. GRIFF-ANALYSE: Rote Route mit Crimps
+5. BEWEGUNGSQUALITÄT: Gute Balance
+6. COACHING-TIPP: Hüfte näher zur Wand
 
-Deine Antwort:"""
+Deine Trainer-Analyse:"""
         else:
             return f"Analyze {sport_type}: rate 1-10, count total moves as number, brief tip."
 
