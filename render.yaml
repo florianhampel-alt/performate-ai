@@ -26,16 +26,10 @@ services:
         value: "us-east-1"
       - key: S3_BUCKET
         value: "performate-ai-uploads"
-      - key: REDIS_HOST
-        fromService:
-          type: redis
-          name: performate-ai-redis
-          property: host
-      - key: REDIS_PORT
-        fromService:
-          type: redis
-          name: performate-ai-redis  
-          property: port
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false  # Set manually in Render dashboard
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false  # Set manually in Render dashboard
       - key: ALLOWED_HOSTS
         value: "performate-ai-backend.onrender.com,performate-ai.vercel.app"
       - key: NEXT_PUBLIC_API_URL
@@ -45,12 +39,8 @@ services:
       - key: ENABLE_AI_ANALYSIS
         value: "true"
 
-  # Redis Service
-  - type: redis
-    name: performate-ai-redis
-    plan: starter
-    region: oregon
-    maxmemoryPolicy: allkeys-lru
+  # Note: Using Upstash Redis (cloud service) instead of local Redis
+  # Configure UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN in Render dashboard
 
 # Static Site (Alternative to Vercel)
 # - type: static
