@@ -1,0 +1,63 @@
+services:
+  # Backend API Service
+  - type: web
+    name: performate-ai-backend
+    runtime: python
+    plan: starter
+    region: oregon
+    buildCommand: cd backend && pip install -r requirements.txt
+    startCommand: cd backend && uvicorn app.main:app --host=0.0.0.0 --port=$PORT
+    healthCheckPath: /health
+    autoDeploy: true
+    branch: main
+    rootDir: backend
+    envVars:
+      - key: DEBUG
+        value: "false"
+      - key: LOG_LEVEL  
+        value: "INFO"
+      - key: OPENAI_API_KEY
+        sync: false  # Set manually in Render dashboard
+      - key: AWS_ACCESS_KEY_ID
+        sync: false  # Set manually in Render dashboard
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false  # Set manually in Render dashboard
+      - key: AWS_REGION
+        value: "us-east-1"
+      - key: S3_BUCKET
+        value: "performate-ai-uploads"
+      - key: REDIS_HOST
+        fromService:
+          type: redis
+          name: performate-ai-redis
+          property: host
+      - key: REDIS_PORT
+        fromService:
+          type: redis
+          name: performate-ai-redis  
+          property: port
+      - key: ALLOWED_HOSTS
+        value: "performate-ai-backend.onrender.com,performate-ai.vercel.app"
+      - key: NEXT_PUBLIC_API_URL
+        value: "https://performate-ai-backend.onrender.com"
+      - key: MAX_FILE_SIZE
+        value: "104857600"  # 100MB
+      - key: ENABLE_AI_ANALYSIS
+        value: "true"
+
+  # Redis Service
+  - type: redis
+    name: performate-ai-redis
+    plan: starter
+    region: oregon
+    maxmemoryPolicy: allkeys-lru
+
+# Static Site (Alternative to Vercel)
+# - type: static
+#   name: performate-ai-frontend
+#   buildCommand: cd frontend && npm install && npm run build
+#   staticPublishPath: frontend/.next
+#   pullRequestPreviewsEnabled: true
+#   envVars:
+#     - key: NEXT_PUBLIC_API_URL
+#       value: https://performate-ai-backend.onrender.com

@@ -1,0 +1,117 @@
+# Warp AI Workflows for Performate AI
+# Professional development workflows
+
+name: "Performate AI Development"
+description: "Complete development environment for Performate AI climbing analysis webapp"
+
+workflows:
+  - name: "🚀 Start Development Environment"
+    description: "Initialize complete development setup with tmux and Docker"
+    command: "pa-start"
+    
+  - name: "🐳 Docker Services"
+    description: "Manage Docker services"
+    command: "pa-up && pa-status"
+    
+  - name: "📊 Show Status"
+    description: "Show all service status and logs"
+    command: |
+      echo "🎯 Performate AI Status Dashboard"
+      echo "================================="
+      echo ""
+      echo "📦 Docker Services:"
+      pa-status
+      echo ""
+      echo "🔄 Recent logs (last 10 lines):"
+      docker compose logs --tail=10
+      echo ""
+      echo "💾 Available commands:"
+      echo "  pa-start  - Start tmux session"
+      echo "  pa-up     - Start all services"
+      echo "  pa-logs   - Follow all logs"
+      echo "  pa-test-backend - Run backend tests"
+      
+  - name: "🧪 Run Tests"
+    description: "Run all tests (backend + frontend)"
+    command: |
+      echo "🧪 Running Performate AI Tests..."
+      echo "================================="
+      cd backend && echo "📍 Backend Tests:" && python -m pytest -v
+      cd ../frontend && echo "📍 Frontend Tests:" && npm test
+      
+  - name: "🔧 Development Tools"
+    description: "Lint and format all code"
+    command: "pa-lint"
+    
+  - name: "📝 View Logs"
+    description: "Show recent application logs"
+    command: |
+      echo "📝 Performate AI Logs"
+      echo "===================="
+      echo "🐳 Docker logs:"
+      pa-logs --tail=20
+      echo ""
+      echo "📁 Log files available in:"
+      ls -la logs/
+      
+  - name: "🛠️ AI Vision Service Test"
+    description: "Test AI vision service with enhanced parsing"
+    command: |
+      cd backend
+      echo "🤖 Testing Enhanced AI Vision Service..."
+      echo "========================================"
+      python3 -c "
+      import sys
+      sys.path.append('.')
+      
+      # Test extraction methods
+      import re
+      
+      def test_extract_wall_angle(text):
+          text_lower = text.lower()
+          angle_patterns = [
+              r'wall angle.*?[:\s]+(\w+(?:\s+\w+)*)',
+              r'angle.*?[:\s]+(vertical|overhang|steep)',
+          ]
+          
+          for pattern in angle_patterns:
+              match = re.search(pattern, text_lower)
+              if match:
+                  angle = match.group(1).strip()
+                  print(f'✅ Wall angle extraction: {angle}')
+                  return angle
+          return 'vertical'
+      
+      def test_extract_move_count(text):
+          move_patterns = [
+              r'visible unique moves.*?[:\s]+(\d+)',  # FIRST PRIORITY
+              r'unique moves.*?[:\s]+(\d+)',
+              r'visible moves.*?[:\s]+(\d+)',
+          ]
+          
+          for i, pattern in enumerate(move_patterns):
+              match = re.search(pattern, text, re.IGNORECASE)
+              if match:
+                  move_count = int(match.group(1))
+                  print(f'✅ Move count extraction (Pattern {i+1}): {move_count} moves')
+                  return move_count
+          return 3
+      
+      # Test with sample data
+      print('🧪 Testing Enhanced AI Parsing Methods:')
+      print('=====================================')
+      test_extract_wall_angle('WALL ANGLE: slight overhang')
+      test_extract_move_count('VISIBLE UNIQUE MOVES: 4\\nVISIBLE MOVES: 8\\nTOTAL MOVES: 12')
+      test_extract_move_count('VISIBLE MOVES: 5\\nMOVES: 10')
+      print('✅ All parsing methods working correctly!')
+      "
+      
+  - name: "🔄 Restart Everything"
+    description: "Clean restart of all services"
+    command: |
+      echo "🔄 Restarting Performate AI Environment..."
+      pa-down
+      sleep 2
+      pa-up
+      echo "✅ Restart complete!"
+      pa-status

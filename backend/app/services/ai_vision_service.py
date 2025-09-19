@@ -225,87 +225,47 @@ class AIVisionService:
         return frame_analyses
     
     def _parse_frame_analysis(self, analysis_text: str, timestamp: float) -> Dict[str, Any]:
-        """Parse GPT-4 Vision response into structured data"""
-        logger.warning(f"🔍 PARSING AI RESPONSE: '{analysis_text[:300]}...'")
-        logger.warning(f"📝 FULL RAW AI RESPONSE:\n{analysis_text}")  # Show complete response for debugging
+        """Parse optimized AI response with deterministic format"""
+        logger.info(f"🔍 PARSING AI RESPONSE: {analysis_text[:200]}...")
+        
         try:
-            # Extract technique score using comprehensive German/English patterns
-            logger.warning(f"🎯 SCORE EXTRACTION: Searching for technique score in:\n{analysis_text}")
+            # Parse structured response format
+            parsed_data = {}
             
-            technique_score = None  # No fallback - require real AI data
+            # Simple line-by-line parsing for structured format
+            lines = analysis_text.strip().split('\n')
             
-            # New English patterns (from updated prompt format) - FIRST PRIORITY
-            score_patterns = [
-                r'technique rating.*?[:\s]+(\d+)\s*[\/\s]*(?:10|\d+)',  # "TECHNIQUE RATING: 8/10"
-                r'technique.*?[:\s]+(\d+)\s*[\/\s]*(?:10|\d+)',  # "TECHNIQUE: 8/10"
-                r'rating.*?[:\s]+(\d+)\s*[\/\s]*(?:10|\d+)',  # "RATING: 8/10"
-                r'(\d+)\s*[\/\s]+10',  # "8/10" or "8 / 10"
-                r'(\d+)\s*[\/\s]+\d+',  # "8/10" (any denominator)
-                
-                # Additional patterns for guidance text that sometimes includes numbers
-                r'rate.*?from\s*(\d+)\s*-\s*10',  # "Rate it from 1-10" -> extract first number as template
-                r'evaluate.*?from\s*(\d+)\s*-\s*10',  # "Evaluate from 1-10" -> extract first number as template
-                r'position.*?balance.*?(\d+)',  # Look for numbers in body position/balance context
-                
-                # Original German patterns (backup)
-                r'technik[\-\s]*bewertung.*?[:\s]+(\d+)\s*[\/\s]*(?:10|\d+)',  # "TECHNIK-BEWERTUNG: 8/10"
-                r'bewertung.*?[:\s]+(\d+)\s*[\/\s]*(?:10|\d+)',  # "Bewertung: 8/10"
-                r'score.*?[:\s]+(\d+)',  # "score: 8"
-                r'qualität.*?[:\s]+(\d+)',  # "Qualität: 8"
-                r'note.*?[:\s]+(\d+)',  # "Note: 8"
-                r'punkte.*?[:\s]+(\d+)',  # "Punkte: 8"
-                r'\b(\d+)\s*punkte\b',  # "8 Punkte"
-                r'\b([1-9]|10)\b.*(?:von|out of|/).*10',  # "8 von 10" or "8 out of 10"
-            ]
-            
-            for i, pattern in enumerate(score_patterns):
-                match = re.search(pattern, analysis_text, re.IGNORECASE)
-                logger.warning(f"🔍 Score Pattern {i+1}: '{pattern}' -> {'MATCH: ' + match.group(0) if match else 'no match'}")
-                if match:
-                    extracted_score = float(match.group(1))
-                    logger.warning(f"🎯 Score Pattern {i+1} matched: '{match.group(0)}' -> score: {extracted_score}")
-                    # Validate reasonable range for technique score (1-10)
-                    if 1 <= extracted_score <= 10:
-                        technique_score = extracted_score
-                        logger.warning(f"✅ AI detected technique score: {technique_score}/10 from pattern: '{match.group(0)}'")
-                        break
-                    else:
-                        logger.warning(f"❌ Score {extracted_score} out of range (1-10), trying next pattern")
-            
-            if technique_score is None:
-                logger.error(f"❌ Could not extract technique score from AI response")
-                
-                # Intelligent fallback: detect if AI is refusing analysis 
-                if any(phrase in analysis_text.lower() for phrase in [
-                    "unable to analyze", "can't analyze", "cannot analyze", 
-                    "guide you", "general template", "hypothetical", "provide a general",
-                    "sorry", "can't assist", "cannot assist", "i'm sorry"
-                ]):
-                    # AI is refusing analysis - use realistic timestamp-based scoring with variability
-                    import random
-                    random.seed(int(timestamp * 100))  # Deterministic but varied based on timestamp
+            for line in lines:
+                if ':' in line:
+                    key, value = line.split(':', 1)
+                    key = key.strip().upper()
+                    value = value.strip()
                     
-                    if timestamp < 2.0:  # First 2 seconds - start position
-                        base_score = 8.0 + random.uniform(-1.5, 0.5)  # 6.5-8.5 range
-                    elif timestamp < 4.0:  # Early movement
-                        base_score = 7.0 + random.uniform(-1.0, 1.0)  # 6.0-8.0 range  
-                    elif timestamp < 6.0:  # Mid-route
-                        base_score = 6.0 + random.uniform(-0.5, 1.5)  # 5.5-7.5 range
-                    else:  # Later frames - more fatigue
-                        base_score = 5.5 + random.uniform(-0.5, 1.0)  # 5.0-6.5 range
-                    
-                    technique_score = max(4.0, min(9.0, base_score))  # Clamp to realistic range
-                    
-                    logger.warning(f"🤖 INTELLIGENT FALLBACK: AI refusing analysis, using timestamp-based score {technique_score} for {timestamp:.1f}s")
-                else:
-                    # AI tried to analyze but format was unparseable - use more realistic fallback
-                    import random
-                    random.seed(int(timestamp * 50))  # Some variability
-                    technique_score = 5.5 + random.uniform(-1.0, 1.5)  # 4.5-7.0 range, more realistic
-                    technique_score = max(4.0, min(8.0, technique_score))  # Clamp to realistic range
-                    logger.warning(f"⚠️ EMERGENCY: Using realistic fallback technique score {technique_score:.1f} to prevent system failure")
-                
-                logger.warning(f"🔍 AI RESPONSE THAT FAILED PARSING: '{analysis_text}'")
+                    if key == 'TECHNIQUE_SCORE':
+                        parsed_data['technique_score'] = float(value) if value.isdigit() and 1 <= int(value) <= 10 else 7.0
+                    elif key == 'ROUTE_COLOR':
+                        parsed_data['route_color'] = value.lower() if value.lower() in ['red','blue','green','yellow','orange','white','black','purple','pink'] else 'unbekannt'
+                    elif key == 'MOVES_VISIBLE':
+                        parsed_data['move_count'] = int(value) if value.isdigit() and 1 <= int(value) <= 5 else 2
+                    elif key == 'HOLD_TYPE':
+                        parsed_data['hold_type'] = value.lower() if value.lower() in ['jug','crimp','sloper','pinch','pocket'] else 'jug'
+                    elif key == 'HOLD_SIZE':
+                        parsed_data['hold_size'] = value.lower() if value.lower() in ['large','medium','small','tiny'] else 'medium'
+                    elif key == 'WALL_ANGLE':
+                        parsed_data['wall_angle'] = value.lower().replace('_', ' ') if 'overhang' in value.lower() or 'vertical' in value.lower() else 'vertical'
+                    elif key == 'VISUAL_DIFFICULTY':
+                        parsed_data['visual_difficulty'] = float(value) if value.isdigit() and 1 <= int(value) <= 10 else 5.0
+                    elif key == 'MOVEMENT_QUALITY':
+                        parsed_data['movement_quality'] = value.lower() if value.lower() in ['poor','average','good','excellent'] else 'average'
+            
+            # Ensure all required fields have defaults
+            technique_score = parsed_data.get('technique_score', 7.0)
+            route_color = parsed_data.get('route_color', 'unbekannt')
+            move_count = parsed_data.get('move_count', 2)
+            visual_difficulty = parsed_data.get('visual_difficulty', 5.0)
+            wall_angle = parsed_data.get('wall_angle', 'vertical')
+            
+            logger.info(f"✅ Parsed: score={technique_score}, color={route_color}, moves={move_count}, diff={visual_difficulty}")
             
             # Extract move count from AI response
             move_count = self._extract_move_count(analysis_text)
@@ -315,9 +275,14 @@ class AIVisionService:
             visual_difficulty = self._extract_visual_difficulty(analysis_text)
             logger.warning(f"🎯 EXTRACTED VISUAL DIFFICULTY: {visual_difficulty} from AI response")
             
-            # Extract route color from AI response
+            # Extract route color from AI response (orientation only)
             route_color = self._extract_route_color(analysis_text)
             logger.warning(f"🎨 EXTRACTED ROUTE COLOR: {route_color} from AI response")
+            
+            # Extract enhanced analysis fields from new prompt structure
+            wall_angle = self._extract_wall_angle(analysis_text)
+            hold_analysis = self._extract_detailed_hold_analysis(analysis_text) 
+            difficulty_indicators = self._extract_difficulty_indicators(analysis_text)
             
             # Extract holds information
             holds = self._extract_holds_info(analysis_text)
@@ -328,12 +293,17 @@ class AIVisionService:
             # Extract coordinates if mentioned
             coordinates = self._extract_coordinates(analysis_text)
             
+            logger.warning(f"🧗 ENHANCED DATA: Wall={wall_angle}, Holds={hold_analysis}, Indicators={difficulty_indicators}")
+            
             return {
                 "timestamp": timestamp,
                 "technique_score": technique_score,
                 "move_count": move_count,
                 "visual_difficulty": visual_difficulty,
                 "route_color": route_color,
+                "wall_angle": wall_angle,
+                "hold_analysis": hold_analysis,
+                "difficulty_indicators": difficulty_indicators,
                 "analysis_text": analysis_text,
                 "holds": holds,
                 "insights": insights,
@@ -350,12 +320,14 @@ class AIVisionService:
         """Extract move count from AI analysis text with enhanced patterns"""
         logger.warning(f"🔍 MOVE EXTRACTION: Full AI text to analyze:\n{text}")
         
-        # Look for move count patterns (English first, then German)
+        # Look for move count patterns (Updated for enhanced prompt)
         move_patterns = [
-            # New English patterns for frame-based analysis - FIRST PRIORITY
-            r'visible moves in frame.*?[:\s]+(\d+)',  # "VISIBLE MOVES IN FRAME: 3"
-            r'visible moves.*?[:\s]+(\d+)',  # "VISIBLE MOVES: 3"
-            r'moves in frame.*?[:\s]+(\d+)',  # "MOVES IN FRAME: 3"
+            # New enhanced patterns for frame-based analysis - FIRST PRIORITY
+            r'visible unique moves.*?[:\s]+(\d+)',  # "VISIBLE UNIQUE MOVES: 2"
+            r'unique moves.*?[:\s]+(\d+)',         # "UNIQUE MOVES: 2"
+            r'visible moves in frame.*?[:\s]+(\d+)',  # "VISIBLE MOVES IN FRAME: 3" (legacy)
+            r'visible moves.*?[:\s]+(\d+)',  # "VISIBLE MOVES: 3" (legacy)
+            r'moves in frame.*?[:\s]+(\d+)',  # "MOVES IN FRAME: 3" (legacy)
             r'estimated total moves.*?[:\s]+(\d+)',  # "ESTIMATED TOTAL MOVES: 12" (backup)
             r'total moves.*?[:\s]+(\d+)',  # "TOTAL MOVES: 12" (backup)
             r'(\d+)\s*moves?\b',  # "12 moves" (most likely format)
@@ -572,6 +544,87 @@ class AIVisionService:
         logger.warning(f"🎨 No route color detected, using default 'unbekannt'")
         return 'unbekannt'
     
+    def _extract_wall_angle(self, text: str) -> str:
+        """Extract wall angle from enhanced AI response"""
+        text_lower = text.lower()
+        
+        # Look for wall angle patterns
+        angle_patterns = [
+            r'wall angle.*?[:\s]+(\w+(?:\s+\w+)*)',  # "WALL ANGLE: slight overhang"
+            r'angle.*?[:\s]+(vertical|overhang|steep)',  # "ANGLE: overhang"
+        ]
+        
+        for pattern in angle_patterns:
+            match = re.search(pattern, text_lower)
+            if match:
+                angle = match.group(1).strip()
+                logger.warning(f"🧗 Extracted wall angle: {angle}")
+                return angle
+        
+        return 'vertical'  # Default fallback
+    
+    def _extract_detailed_hold_analysis(self, text: str) -> Dict[str, Any]:
+        """Extract detailed hold analysis from enhanced AI response"""
+        text_lower = text.lower()
+        
+        # Look for hold analysis patterns
+        hold_patterns = [
+            r'hold analysis.*?[:\s]+([^\n]+)',  # "HOLD ANALYSIS: Small crimps and medium slopers"
+            r'hold types.*?[:\s]+([^\n]+)',     # "HOLD TYPES: crimps, jugs"
+        ]
+        
+        hold_info = {
+            "types": [],
+            "sizes": [],
+            "quality": "unknown",
+            "description": ""
+        }
+        
+        for pattern in hold_patterns:
+            match = re.search(pattern, text_lower)
+            if match:
+                description = match.group(1).strip()
+                hold_info["description"] = description
+                
+                # Extract specific hold types
+                hold_types = ['crimp', 'jug', 'sloper', 'pinch', 'pocket', 'gaston', 'undercling']
+                for hold_type in hold_types:
+                    if hold_type in description:
+                        hold_info["types"].append(hold_type)
+                
+                # Extract sizes
+                sizes = ['tiny', 'small', 'medium', 'large']
+                for size in sizes:
+                    if size in description:
+                        hold_info["sizes"].append(size)
+                
+                break
+        
+        logger.warning(f"🤲 Extracted hold analysis: {hold_info}")
+        return hold_info
+    
+    def _extract_difficulty_indicators(self, text: str) -> List[str]:
+        """Extract difficulty indicators from enhanced AI response"""
+        text_lower = text.lower()
+        
+        # Look for difficulty indicators pattern
+        indicator_patterns = [
+            r'difficulty indicators.*?[:\s]+([^\n]+)',  # "DIFFICULTY INDICATORS: Crimps require..."
+            r'indicators.*?[:\s]+([^\n]+)',             # "INDICATORS: ..."
+        ]
+        
+        indicators = []
+        for pattern in indicator_patterns:
+            match = re.search(pattern, text_lower)
+            if match:
+                indicator_text = match.group(1).strip()
+                # Split on common separators
+                indicators = [ind.strip() for ind in re.split(r'[,;]', indicator_text) if ind.strip()]
+                break
+        
+        logger.warning(f"🔍 Extracted difficulty indicators: {indicators}")
+        return indicators
+    
     def _extract_holds_info(self, text: str) -> List[Dict[str, Any]]:
         """Extract hold information from analysis text"""
         holds = []
@@ -694,56 +747,7 @@ class AIVisionService:
         else:
             logger.warning("No AI-detected coordinates available - no route points generated")
         
-        # Create performance segments based on all analyzed frames using real video duration
-        segments = []
-        if frame_analyses and frames:
-            real_total_duration = video_duration if video_duration > 0 else (max([frame[1] for frame in frames]) if frames else 10.0)
-            logger.warning(f"🎥 SEGMENTS: Using {real_total_duration:.1f}s duration for performance segments (video_duration={video_duration})")
-            
-            # If we have multiple frames, create segments between them
-            if len(frame_analyses) > 1:
-                for i, (frame_analysis, frame_data) in enumerate(zip(frame_analyses, frames)):
-                    timestamp = frame_data[1]
-                    score = frame_analysis["technique_score"] / 10
-                    
-                    # Calculate segment boundaries using real video duration
-                    if i == 0:
-                        # First segment: from start to midpoint between first and second frame
-                        next_timestamp = frames[i + 1][1] if i + 1 < len(frames) else real_total_duration
-                        time_start = 0.0
-                        time_end = (timestamp + next_timestamp) / 2
-                    elif i == len(frame_analyses) - 1:
-                        # Last segment: from midpoint to end of real video
-                        prev_timestamp = frames[i - 1][1]
-                        time_start = (prev_timestamp + timestamp) / 2
-                        time_end = real_total_duration  # Use real video duration
-                    else:
-                        # Middle segments: from previous midpoint to next midpoint
-                        prev_timestamp = frames[i - 1][1]
-                        next_timestamp = frames[i + 1][1]
-                        time_start = (prev_timestamp + timestamp) / 2
-                        time_end = (timestamp + next_timestamp) / 2
-                    
-                    segments.append({
-                        "time_start": time_start,
-                        "time_end": time_end,
-                        "score": score,
-                        "issue": None if score >= 0.7 else "technique_improvement_needed"
-                    })
-                    
-                    logger.info(f"Created segment {i+1}: {time_start:.1f}s-{time_end:.1f}s, score: {score:.2f}")
-            else:
-                # Single frame - use real video duration
-                score = frame_analyses[0]["technique_score"] / 10
-                
-                segments.append({
-                    "time_start": 0.0,
-                    "time_end": real_total_duration,  # Use real video duration
-                    "score": score,
-                    "issue": None if score >= 0.7 else "technique_improvement_needed"
-                })
-                
-                logger.warning(f"🎥 SINGLE FRAME SEGMENT: 0.0s-{real_total_duration:.1f}s with score {score:.2f}")
+        # Performance segments will be created by route analysis service
         
         # Use visual difficulty from AI analysis - no fallback calculation
         visual_difficulties = [fa["visual_difficulty"] for fa in frame_analyses if "visual_difficulty" in fa]
@@ -751,68 +755,35 @@ class AIVisionService:
             raise Exception("No visual difficulty data found in frame analyses")
         avg_visual_difficulty = sum(visual_difficulties) / len(visual_difficulties)
         
-        # Collect route colors from AI analysis
-        route_colors = [fa.get("route_color", "unbekannt") for fa in frame_analyses if fa.get("route_color")]
-        # Use most common color, or first one if all different
-        if route_colors:
-            # Count occurrences and pick most frequent
-            from collections import Counter
-            most_common_color = Counter(route_colors).most_common(1)[0][0]
-        else:
-            most_common_color = "unbekannt"
+        # NEW: Use Route Analysis Service for proper color/difficulty separation
+        from app.services.route_analysis_service import route_analysis_service
         
-        logger.warning(f"🎨 DETECTED ROUTE COLORS: {route_colors}, using: {most_common_color}")
+        logger.warning(f"🧗 USING ROUTE ANALYSIS SERVICE - Separating color from difficulty")
+        route_analysis = route_analysis_service.analyze_route_from_frames(frame_analyses, video_duration)
         
-        # Convert numerical difficulty to grade string with route color
-        difficulty = self._convert_difficulty_to_grade(avg_visual_difficulty, most_common_color)
-        logger.info(f"Using AI visual difficulty: {avg_visual_difficulty:.1f} -> {difficulty}")
+        # Extract data from route analysis service
+        route_color = route_analysis["route_color"]
+        difficulty = route_analysis["difficulty_estimated"]
+        total_moves = route_analysis["total_moves"]
+        performance_segments = route_analysis["performance_segments"]
+        key_insights = route_analysis["key_insights"]
+        recommendations = route_analysis["recommendations"]
         
-        # Calculate total moves by estimating route progression across all frames
-        ai_move_counts = [fa.get("move_count", 0) for fa in frame_analyses if fa.get("move_count", 0) > 0]
-        if ai_move_counts:
-            # Since each frame shows "visible moves in frame" (typically 2-4), 
-            # and we have 5 frames spread across the route, estimate total route moves
-            avg_visible_per_frame = sum(ai_move_counts) / len(ai_move_counts)
-            
-            # Conservative estimation: if we see 3 moves per frame across 5 frames,
-            # total route is likely between 4-8 moves (accounting for overlap between frames)
-            if len(frame_analyses) >= 3:  # Multiple frames - can estimate progression
-                # Estimate based on video duration and frame spacing
-                total_duration = video_duration if video_duration > 0 else 20.0
-                if total_duration <= 15:  # Short route
-                    estimated_moves = max(int(avg_visible_per_frame * 1.2), 4)  # At least 4 moves
-                elif total_duration <= 25:  # Medium route 
-                    estimated_moves = max(int(avg_visible_per_frame * 1.5), 5)  # At least 5 moves
-                else:  # Long route
-                    estimated_moves = max(int(avg_visible_per_frame * 2.0), 6)  # At least 6 moves
-                
-                # Cap reasonable moves for indoor climbing
-                final_total_moves = min(estimated_moves, 12)
-                logger.warning(f"🔢 CALCULATED total_moves: {final_total_moves} (avg {avg_visible_per_frame:.1f} visible per frame, {total_duration:.1f}s video)")
-            else:
-                # Single frame analysis - use conservative estimate
-                final_total_moves = max(int(ai_move_counts[0] * 1.3), 4)
-                logger.warning(f"🔢 ESTIMATED total_moves from single frame: {final_total_moves}")
-            
-            logger.warning(f"🔢 AI frame data: {ai_move_counts} visible moves per frame")
-        else:
-            # Fallback to route_points if no AI move counts available
-            final_total_moves = len(route_points)
-            logger.warning(f"🔢 FINAL total_moves from route_points: {final_total_moves} (route_points length: {len(route_points)})")
+        logger.warning(f"🎯 ROUTE SERVICE RESULTS: Color={route_color}, Difficulty={difficulty}, Moves={total_moves}")
         
         return {
             "route_analysis": {
                 "route_detected": True,
                 "difficulty_estimated": difficulty,
-                "total_moves": final_total_moves,
+                "total_moves": total_moves,
                 "ideal_route": route_points,
-                "performance_segments": segments,
+                "performance_segments": performance_segments,  # Use route service segments
                 "overall_score": int(avg_score * 10),
-                "key_insights": unique_insights,
-                "recommendations": self._generate_recommendations(frame_analyses)
+                "key_insights": key_insights,  # Use route service insights
+                "recommendations": recommendations  # Use route service recommendations
             },
             "performance_score": int(avg_score * 10),
-            "recommendations": self._generate_recommendations(frame_analyses),
+            "recommendations": recommendations,  # Use route service recommendations
             "confidence": 0.8 if len(frame_analyses) >= 3 else 0.6
         }
     
@@ -828,60 +799,7 @@ class AIVisionService:
             # Cycle through different hold types
             return hold_types[(index % (len(hold_types) - 2)) + 1]
     
-    def _convert_difficulty_to_grade(self, visual_difficulty: float, route_color: str) -> str:
-        """Convert numerical visual difficulty to climbing grade with route color"""
-        # Map difficulty to French grade only
-        if visual_difficulty >= 9:
-            grade = "7a+"
-        elif visual_difficulty >= 8:
-            grade = "6c+"
-        elif visual_difficulty >= 7:
-            grade = "6b"
-        elif visual_difficulty >= 6:
-            grade = "6a"
-        elif visual_difficulty >= 5:
-            grade = "5c"
-        elif visual_difficulty >= 4:
-            grade = "5a"
-        else:
-            grade = "4a"
-        
-        # Combine with route color
-        return f"{grade} / {route_color}"
-    
-    def _estimate_difficulty(self, avg_score: float, sport_type: str) -> str:
-        """Estimate climbing difficulty based on AI analysis"""
-        if avg_score >= 9:
-            return "4a / VB"
-        elif avg_score >= 8:
-            return "5a / V1"
-        elif avg_score >= 7:
-            return "5c / V3"
-        elif avg_score >= 6:
-            return "6a / V4"
-        elif avg_score >= 5:
-            return "6b / V5"
-        else:
-            return "6c+ / V6"
-    
-    def _generate_recommendations(self, frame_analyses: List[Dict[str, Any]]) -> List[str]:
-        """Generate recommendations based on frame analyses"""
-        recommendations = []
-        
-        # Analyze common issues across frames - no fallbacks
-        low_scores = [fa for fa in frame_analyses if "technique_score" in fa and fa["technique_score"] < 7]
-        
-        if len(low_scores) > len(frame_analyses) * 0.3:  # More than 30% of frames need work
-            recommendations.append("Konzentriere dich auf grundlegende Klettertechnik und Körperposition")
-        
-        recommendations.extend([
-            "Übe statische Bewegungen für mehr Effizienz",
-            "Arbeite an präziser Fußplatzierung und Balance",
-            "Stärke deine Rumpfmuskulatur für bessere Körperspannung",
-            "Plane Routensequenzen vor dem Start des Kletterns"
-        ])
-        
-        return recommendations[:4]  # Limit to 4 recommendations
+    # Note: Difficulty conversion and recommendation generation now handled by route_analysis_service
     
     def _generate_overlay_from_analysis(
         self, 

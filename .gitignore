@@ -72,3 +72,11 @@ backend/uploads/
 
 # AWS S3 configuration (contains sensitive info)
 s3-bucket-policy.json
+
+# Development Environment Logs
+logs/
+*.log
+.tmux-*
+
+# Project-specific history
+.zsh_history

@@ -25,17 +25,8 @@ app = FastAPI(
     version="1.2.0"
 )
 
-# CORS middleware - Production-hardened configuration
-allowed_origins = [
-    "http://localhost:3000",    # Local development
-    "http://127.0.0.1:3000",    # Local development  
-    "https://performate-ai.vercel.app",
-    "https://www.performate-ai.com"
-] if settings.DEBUG else [
-    "https://performate-ai.vercel.app",
-    "https://www.performate-ai.com"
-    # Remove wildcard for production security
-]
+# CORS middleware - Restrict origins in production
+allowed_origins = ["*"] if settings.DEBUG else ["https://performate-ai.vercel.app", "https://www.performate-ai.com"]
 
 app.add_middleware(
     CORSMiddleware,

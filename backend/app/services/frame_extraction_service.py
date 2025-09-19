@@ -223,31 +223,37 @@ class FrameExtractionService:
         }
     
     def _calculate_frame_indices(self, total_frames: int, duration: float) -> List[int]:
-        """Calculate which frames to extract for complete route analysis"""
-        indices = []
-        
-        if duration <= 10:  # Short videos - extract more frames
-            # For short videos, extract frames every 2 seconds
-            fps = total_frames / duration if duration > 0 else 24
-            interval_frames = int(fps * 2)  # Every 2 seconds
-            indices = list(range(0, total_frames, max(1, interval_frames)))
+        """Calculate strategic frame indices with performance optimization"""
+        # Optimize for climbing videos: key positions in route progression
+        if duration <= 15:
+            # Short routes: focus on start, middle, end + 2 transition points
+            percentages = [0.05, 0.3, 0.5, 0.7, 0.95]
         else:
-            # For longer videos, extract strategically across the entire duration
-            # Start (0-10%), Early climb (20%), Mid climb (40%), Late climb (70%), Finish (90-100%)
-            key_percentages = [0.05, 0.25, 0.45, 0.65, 0.85, 0.95]  # 6 strategic points
+            # Long routes: add more progression points
+            percentages = [0.05, 0.2, 0.35, 0.5, 0.65, 0.8, 0.95]
+        
+        indices = []
+        for pct in percentages[:self.max_frames]:
+            frame_idx = min(int(total_frames * pct), total_frames - 1)
+            indices.append(frame_idx)
+        
+        # Remove duplicates and ensure minimum spread
+        indices = sorted(set(indices))
+        
+        # Ensure minimum frame spacing (avoid analyzing nearly identical frames)
+        if len(indices) > 1:
+            min_spacing = max(24, total_frames // 20)  # At least 1s spacing or 5% of video
+            filtered_indices = [indices[0]]  # Always keep first frame
             
-            for percentage in key_percentages:
-                frame_idx = int(total_frames * percentage)
-                indices.append(min(frame_idx, total_frames - 1))
+            for idx in indices[1:]:
+                if idx - filtered_indices[-1] >= min_spacing:
+                    filtered_indices.append(idx)
+                elif len(filtered_indices) < 3:  # Ensure minimum 3 frames
+                    filtered_indices.append(idx)
+            
+            indices = filtered_indices
         
-        # Remove duplicates, sort, and limit to max_frames
-        indices = sorted(set(indices))[:self.max_frames]
-        
-        # Ensure we always have at least start and end frames
-        if len(indices) < 2 and total_frames > 1:
-            indices = [0, total_frames - 1]
-        
-        logger.info(f"Selected frame indices for {duration:.1f}s video: {indices}")
+        logger.info(f"Optimized frame selection for {duration:.1f}s: {len(indices)} frames at indices {indices}")
         return indices
     
     def _process_frame(self, frame) -> Optional[str]:
@@ -289,28 +295,30 @@ class FrameExtractionService:
             return None
     
     def get_frame_analysis_prompt(self, sport_type: str = "climbing") -> str:
-        """AI prompt focused on visual analysis to reduce hallucinations"""
+        """Optimized AI prompt - token-efficient and deterministic output format"""
         if sport_type in ['climbing', 'bouldering']:
-            return """You are analyzing a climbing video frame. Please analyze what you can see and provide a structured assessment.
+            return """Analyze climbing technique in this frame. Respond ONLY with these 8 numbers/words:
 
-Please provide your analysis in this format:
-
-1. TECHNIQUE RATING: [score]/10
-2. ROUTE COLOR: [main color of holds being used]
-3. VISIBLE MOVES IN FRAME: [number] moves
-4. HOLD TYPES ON ROUTE: [types of holds visible]
-5. VISUAL DIFFICULTY: [score]/10
-6. MOVEMENT QUALITY: [brief assessment]
+TECHNIQUE_SCORE: [1-10]
+ROUTE_COLOR: [red/blue/green/yellow/orange/white/black/purple/pink]
+MOVES_VISIBLE: [1-5] 
+HOLD_TYPE: [jug/crimp/sloper/pinch/pocket]
+HOLD_SIZE: [large/medium/small/tiny]
+WALL_ANGLE: [vertical/slight_overhang/overhang/steep]
+VISUAL_DIFFICULTY: [1-10] (ignore color, use hold size/angle only)
+MOVEMENT_QUALITY: [poor/average/good/excellent]
 
 Example:
-1. TECHNIQUE RATING: 7/10
-2. ROUTE COLOR: white
-3. VISIBLE MOVES IN FRAME: 3 moves
-4. HOLD TYPES ON ROUTE: Large holds and smaller grips
-5. VISUAL DIFFICULTY: 5/10
-6. MOVEMENT QUALITY: Balanced positioning"""
+TECHNIQUE_SCORE: 7
+ROUTE_COLOR: blue
+MOVES_VISIBLE: 2
+HOLD_TYPE: crimp
+HOLD_SIZE: small
+WALL_ANGLE: slight_overhang
+VISUAL_DIFFICULTY: 6
+MOVEMENT_QUALITY: good"""
         else:
-            return f"Analyze {sport_type}: rate 1-10, count total moves as number, brief tip."
+            return f"Analyze {sport_type}: rate technique 1-10, count moves, assess difficulty independent of colors."
 
 
 # Global service instance
