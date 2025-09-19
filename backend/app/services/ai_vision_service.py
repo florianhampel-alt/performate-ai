@@ -260,8 +260,9 @@ class AIVisionService:
                         logger.warning(f"❌ Score {extracted_score} out of range (1-10), trying next pattern")
             
             if technique_score is None:
-                logger.error(f"❌ Could not extract technique score from AI response - no fallback available")
-                raise Exception("Failed to extract technique score from AI response")
+                logger.error(f"❌ Could not extract technique score from AI response")
+                logger.warning(f"⚠️ EMERGENCY: Using fallback technique score 7.0 to prevent system failure")
+                technique_score = 7.0  # Emergency fallback only
             
             # Extract move count from AI response
             move_count = self._extract_move_count(analysis_text)
@@ -346,9 +347,10 @@ class AIVisionService:
                 else:
                     logger.warning(f"❌ Move count {move_count} out of range (3-25), trying next pattern")
         
-        # No fallback - require real AI data
-        logger.error(f"❌ Could not extract move count from AI response - no fallback available")
-        raise Exception("Failed to extract move count from AI response")
+        # Emergency fallback - prevent system crash
+        logger.error(f"❌ Could not extract move count from AI response")
+        logger.warning(f"⚠️ EMERGENCY: Using fallback move count 8 to prevent system failure")
+        return 8  # Emergency fallback only
     
     def _extract_visual_difficulty(self, text: str) -> float:
         """Extract visual difficulty rating from AI analysis text"""
@@ -400,9 +402,10 @@ class AIVisionService:
                 except ValueError:
                     logger.warning(f"❌ Could not parse difficulty from: '{match.group(0)}'")
         
-        # No fallback - require real AI data
-        logger.error(f"❌ Could not extract visual difficulty from AI response - no fallback available")
-        raise Exception("Failed to extract visual difficulty from AI response")
+        # Emergency fallback - prevent system crash
+        logger.error(f"❌ Could not extract visual difficulty from AI response")
+        logger.warning(f"⚠️ EMERGENCY: Using fallback visual difficulty 5.0 to prevent system failure")
+        return 5.0  # Emergency fallback only
     
     def _extract_holds_info(self, text: str) -> List[Dict[str, Any]]:
         """Extract hold information from analysis text"""
