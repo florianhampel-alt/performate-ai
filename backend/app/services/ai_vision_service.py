@@ -506,51 +506,63 @@ class AIVisionService:
         return visual_difficulty
     
     def _extract_route_color(self, text: str) -> str:
-        """Extract route color from AI analysis text"""
+        """Extract route color from AI analysis text - focus on the color the climber is actually using"""
         text_lower = text.lower()
         
-        # Look for color mentions in the AI response
-        color_patterns = [
-            r'\b(red|rot|roten?)\b',
-            r'\b(green|grün|grünen?)\b', 
-            r'\b(blue|blau|blauen?)\b',
-            r'\b(yellow|gelb|gelben?)\b',
-            r'\b(orange|orangen?)\b',
-            r'\b(purple|lila|violett)\b',
-            r'\b(pink|rosa)\b',
-            r'\b(white|weiß|weißen?)\b',
-            r'\b(black|schwarz|schwarzen?)\b',
+        # First priority: Look for explicit "ROUTE COLOR:" format from new prompt
+        route_color_patterns = [
+            r'route color.*?[:\s]+(\w+)',  # "ROUTE COLOR: white"
+            r'route.*?color.*?[:\s]+(\w+)',  # "ROUTE COLOR: white" variations
         ]
         
         color_map = {
-            'red': 'rot', 'rot': 'rot', 'rote': 'rot', 'roten': 'rot',
-            'green': 'grün', 'grün': 'grün', 'grüne': 'grün', 'grünen': 'grün',
-            'blue': 'blau', 'blau': 'blau', 'blaue': 'blau', 'blauen': 'blau',
-            'yellow': 'gelb', 'gelb': 'gelb', 'gelbe': 'gelb', 'gelben': 'gelb',
-            'orange': 'orange', 'orangen': 'orange',
+            'red': 'rot', 'rot': 'rot',
+            'green': 'grün', 'grün': 'grün', 
+            'blue': 'blau', 'blau': 'blau',
+            'yellow': 'gelb', 'gelb': 'gelb',
+            'orange': 'orange',
             'purple': 'lila', 'lila': 'lila', 'violett': 'lila',
             'pink': 'rosa', 'rosa': 'rosa',
-            'white': 'weiß', 'weiß': 'weiß', 'weiße': 'weiß', 'weißen': 'weiß',
-            'black': 'schwarz', 'schwarz': 'schwarz', 'schwarze': 'schwarz', 'schwarzen': 'schwarz'
+            'white': 'weiß', 'weiß': 'weiß',
+            'black': 'schwarz', 'schwarz': 'schwarz'
         }
         
-        for pattern in color_patterns:
+        # Try to extract from "ROUTE COLOR:" field first
+        for pattern in route_color_patterns:
             match = re.search(pattern, text_lower)
             if match:
-                color_word = match.group(1).lower()
+                color_word = match.group(1).lower().strip()
                 if color_word in color_map:
-                    logger.warning(f"🎨 Detected route color: {color_map[color_word]} from '{match.group(0)}'")
-                    return color_map[color_word]
+                    german_color = color_map[color_word]
+                    logger.warning(f"🎨 Extracted route color from 'ROUTE COLOR:' field: {german_color} (from: {color_word})")
+                    return german_color
+                else:
+                    logger.warning(f"🎨 Unknown color in ROUTE COLOR field: '{color_word}'")
         
-        # Fallback: analyze most common colors mentioned in climbing context
-        if any(word in text_lower for word in ['red', 'rot']):
-            return 'rot'
-        elif any(word in text_lower for word in ['green', 'grün']):
-            return 'grün'
-        elif any(word in text_lower for word in ['blue', 'blau']):
-            return 'blau'
-        elif any(word in text_lower for word in ['yellow', 'gelb']):
-            return 'gelb'
+        # Fallback: Look for colors mentioned in context of "climber is using" or "gripping"
+        usage_patterns = [
+            r'climber.*?(?:using|gripping|holding|touching).*?(\w+)\s+(?:holds?|grips?)',
+            r'(\w+)\s+(?:holds?|grips?).*?(?:climber|using|gripping)',
+            r'holds?.*?(\w+).*?(?:using|gripping|touching)',
+        ]
+        
+        for pattern in usage_patterns:
+            matches = re.findall(pattern, text_lower)
+            for match in matches:
+                if match in color_map:
+                    german_color = color_map[match]
+                    logger.warning(f"🎨 Detected route color from usage context: {german_color} (from: {match})")
+                    return german_color
+        
+        # Last resort: look for any color mention
+        all_color_patterns = r'\b(white|weiß|red|rot|green|grün|blue|blau|yellow|gelb|orange|purple|lila|pink|rosa|black|schwarz)\b'
+        matches = re.findall(all_color_patterns, text_lower)
+        if matches:
+            first_color = matches[0]
+            if first_color in color_map:
+                german_color = color_map[first_color]
+                logger.warning(f"🎨 Fallback route color detection: {german_color} (from: {first_color})")
+                return german_color
         
         # Default fallback
         logger.warning(f"🎨 No route color detected, using default 'unbekannt'")
@@ -751,12 +763,34 @@ class AIVisionService:
         difficulty = self._convert_difficulty_to_grade(avg_visual_difficulty, most_common_color)
         logger.info(f"Using AI visual difficulty: {avg_visual_difficulty:.1f} -> {difficulty}")
         
-        # Use AI-extracted move counts instead of route_points length
+        # Calculate total moves by estimating route progression across all frames
         ai_move_counts = [fa.get("move_count", 0) for fa in frame_analyses if fa.get("move_count", 0) > 0]
         if ai_move_counts:
-            # Use median of AI-extracted move counts for stability
-            final_total_moves = int(sorted(ai_move_counts)[len(ai_move_counts)//2])
-            logger.warning(f"🔢 FINAL total_moves from AI: {final_total_moves} (median of {ai_move_counts})")
+            # Since each frame shows "visible moves in frame" (typically 2-4), 
+            # and we have 5 frames spread across the route, estimate total route moves
+            avg_visible_per_frame = sum(ai_move_counts) / len(ai_move_counts)
+            
+            # Conservative estimation: if we see 3 moves per frame across 5 frames,
+            # total route is likely between 4-8 moves (accounting for overlap between frames)
+            if len(frame_analyses) >= 3:  # Multiple frames - can estimate progression
+                # Estimate based on video duration and frame spacing
+                total_duration = video_duration if video_duration > 0 else 20.0
+                if total_duration <= 15:  # Short route
+                    estimated_moves = max(int(avg_visible_per_frame * 1.2), 4)  # At least 4 moves
+                elif total_duration <= 25:  # Medium route 
+                    estimated_moves = max(int(avg_visible_per_frame * 1.5), 5)  # At least 5 moves
+                else:  # Long route
+                    estimated_moves = max(int(avg_visible_per_frame * 2.0), 6)  # At least 6 moves
+                
+                # Cap reasonable moves for indoor climbing
+                final_total_moves = min(estimated_moves, 12)
+                logger.warning(f"🔢 CALCULATED total_moves: {final_total_moves} (avg {avg_visible_per_frame:.1f} visible per frame, {total_duration:.1f}s video)")
+            else:
+                # Single frame analysis - use conservative estimate
+                final_total_moves = max(int(ai_move_counts[0] * 1.3), 4)
+                logger.warning(f"🔢 ESTIMATED total_moves from single frame: {final_total_moves}")
+            
+            logger.warning(f"🔢 AI frame data: {ai_move_counts} visible moves per frame")
         else:
             # Fallback to route_points if no AI move counts available
             final_total_moves = len(route_points)

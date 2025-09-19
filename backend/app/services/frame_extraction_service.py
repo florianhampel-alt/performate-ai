@@ -291,32 +291,33 @@ class FrameExtractionService:
     def get_frame_analysis_prompt(self, sport_type: str = "climbing") -> str:
         """AI prompt focused on visual analysis to reduce hallucinations"""
         if sport_type in ['climbing', 'bouldering']:
-            return """IMPORTANT: Analyze ONLY what you can directly observe in this specific climbing frame image. Do not make assumptions about the entire route.
+            return """CRITICAL: You are analyzing a climbing video frame. The climber follows ONE specific route color. Your job is to identify which color the climber is actually USING (touching/gripping).
 
-First, describe what you actually see:
-- What colors are the climbing holds that are visible?
-- What is the climber's body position and technique?
-- What type of holds can you identify (jugs, crimps, slopers)?
-- What is the wall angle (vertical, overhang, slab)?
+Analyze this frame:
 
-Then provide your assessment in this exact format:
+1. CLIMBER POSITION: Where are the climber's hands and feet positioned?
+2. ROUTE COLOR IDENTIFICATION: What color holds is the climber actually gripping/standing on? (This is the route color - ignore other colors on the wall)
+3. HOLD TYPES: What types of holds does the climber use (jugs, crimps, slopers, pinches)?
+4. MOVEMENT ANALYSIS: How is the climber moving between holds?
 
-1. TECHNIQUE RATING: [1-10]/10 (based on visible body position and movement)
-2. VISIBLE MOVES IN FRAME: [1-5] moves (only count holds/moves you can actually see)
-3. VISUAL DIFFICULTY: [1-10]/10 (based on visible hold types and wall angle only)
-4. HOLD ANALYSIS: [describe only the hold colors and types you can actually see]
-5. MOVEMENT QUALITY: [assess only the visible technique and body position]
-6. TRAINING TIP: [suggestion based on what you observe]
+Provide assessment in this EXACT format:
+
+1. TECHNIQUE RATING: [1-10]/10
+2. ROUTE COLOR: [the ONE color the climber is actually using]
+3. VISIBLE MOVES IN FRAME: [1-5] moves
+4. HOLD TYPES ON ROUTE: [describe the holds the climber is actually using]
+5. VISUAL DIFFICULTY: [1-10]/10 (based on hold types and spacing of the route color)
+6. MOVEMENT QUALITY: [climber's technique assessment]
 
 Example format:
 1. TECHNIQUE RATING: 7/10
-2. VISIBLE MOVES IN FRAME: 3 moves  
-3. VISUAL DIFFICULTY: 5/10
-4. HOLD ANALYSIS: White jugs and small crimps visible
-5. MOVEMENT QUALITY: Good body positioning, stable grip
-6. TRAINING TIP: Focus on hip positioning
+2. ROUTE COLOR: white
+3. VISIBLE MOVES IN FRAME: 3 moves
+4. HOLD TYPES ON ROUTE: White jugs and crimps that climber is gripping
+5. VISUAL DIFFICULTY: 5/10
+6. MOVEMENT QUALITY: Good body positioning
 
-Remember: Only analyze what you can directly see in this frame. Do not estimate total route length or make assumptions about unseen parts."""
+IMPORTANT: Focus only on the holds the climber is actually touching/using, not all colors visible on the wall."""
         else:
             return f"Analyze {sport_type}: rate 1-10, count total moves as number, brief tip."
 
