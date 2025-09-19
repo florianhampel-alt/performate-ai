@@ -348,9 +348,12 @@ class AIVisionService:
         
         # Look for move count patterns (English first, then German)
         move_patterns = [
-            # New English patterns (from updated prompt) - FIRST PRIORITY
-            r'estimated total moves.*?[:\s]+(\d+)',  # "ESTIMATED TOTAL MOVES: 12"
-            r'total moves.*?[:\s]+(\d+)',  # "TOTAL MOVES: 12"
+            # New English patterns for frame-based analysis - FIRST PRIORITY
+            r'visible moves in frame.*?[:\s]+(\d+)',  # "VISIBLE MOVES IN FRAME: 3"
+            r'visible moves.*?[:\s]+(\d+)',  # "VISIBLE MOVES: 3"
+            r'moves in frame.*?[:\s]+(\d+)',  # "MOVES IN FRAME: 3"
+            r'estimated total moves.*?[:\s]+(\d+)',  # "ESTIMATED TOTAL MOVES: 12" (backup)
+            r'total moves.*?[:\s]+(\d+)',  # "TOTAL MOVES: 12" (backup)
             r'(\d+)\s*moves?\b',  # "12 moves" (most likely format)
             r'moves.*?[:\s]+(\d+)',  # "MOVES: 12"
             
@@ -390,12 +393,18 @@ class AIVisionService:
             if match:
                 move_count = int(match.group(1))
                 logger.warning(f"🎯 Pattern {i+1} matched: '{match.group(0)}' -> {move_count} moves")
-                # Validate reasonable range for climbing - allow full range as routes vary greatly
-                if 3 <= move_count <= 25:
+                # Validate reasonable range - for frame-based analysis expect 1-5 visible moves, but allow broader range for compatibility
+                if 1 <= move_count <= 15:
                     logger.warning(f"✅ AI detected {move_count} moves from pattern: '{match.group(0)}'")
+                    # If it's a high number and we're using frame-based analysis, scale it down
+                    if 'visible moves in frame' in match.group(0).lower() or 'moves in frame' in match.group(0).lower():
+                        # This is truly frame-based, should be 1-5
+                        if move_count > 5:
+                            move_count = min(5, move_count // 2)  # Scale down large numbers
+                            logger.warning(f"🔧 Scaled down frame-based move count to {move_count}")
                     return move_count
                 else:
-                    logger.warning(f"❌ Move count {move_count} out of range (3-25), trying next pattern")
+                    logger.warning(f"❌ Move count {move_count} out of range (1-15), trying next pattern")
         
         # Intelligent fallback - prevent system crash
         logger.error(f"❌ Could not extract move count from AI response")
@@ -406,13 +415,13 @@ class AIVisionService:
             "guide you", "general template", "hypothetical", "provide a general",
             "sorry", "can't assist", "cannot assist", "i'm sorry"
         ]):
-            # AI is refusing - use realistic estimate for short route
-            move_count = 4  # More realistic for short climbing videos
-            logger.warning(f"🤖 INTELLIGENT FALLBACK: AI refusing analysis, using realistic short route move count {move_count}")
+            # AI is refusing - use realistic estimate for visible moves in single frame
+            move_count = 2  # Realistic for visible moves in a single frame
+            logger.warning(f"🤖 INTELLIGENT FALLBACK: AI refusing analysis, using realistic frame-based move count {move_count}")
         else:
-            # AI tried but format was unparseable - use more realistic fallback
-            move_count = 5  # More realistic than 8-12 for most routes
-            logger.warning(f"⚠️ EMERGENCY: Using realistic fallback move count {move_count} to prevent system failure")
+            # AI tried but format was unparseable - use conservative fallback for frame analysis
+            move_count = 3  # Conservative estimate for moves visible in one frame
+            logger.warning(f"⚠️ EMERGENCY: Using realistic frame-based fallback move count {move_count} to prevent system failure")
         
         return move_count
     
@@ -422,9 +431,10 @@ class AIVisionService:
         
         # Look for visual difficulty patterns (English first, then German)
         difficulty_patterns = [
-            # New English patterns (from updated prompt) - FIRST PRIORITY
-            r'route difficulty.*?[:\s]+(\d+(?:\.\d+)?)\s*[\/\s]*(?:10|\d+)',  # "ROUTE DIFFICULTY: 6/10"
-            r'difficulty.*?[:\s]+(\d+(?:\.\d+)?)\s*[\/\s]*(?:10|\d+)',  # "DIFFICULTY: 6/10"
+            # New English patterns for frame-based analysis - FIRST PRIORITY
+            r'visual difficulty.*?[:\s]+(\d+(?:\.\d+)?)\s*[\/\s]*(?:10|\d+)',  # "VISUAL DIFFICULTY: 6/10"
+            r'route difficulty.*?[:\s]+(\d+(?:\.\d+)?)\s*[\/\s]*(?:10|\d+)',  # "ROUTE DIFFICULTY: 6/10" (backup)
+            r'difficulty.*?[:\s]+(\d+(?:\.\d+)?)\s*[\/\s]*(?:10|\d+)',  # "DIFFICULTY: 6/10" (backup)
             r'(\d+(?:\.\d+)?)\s*[\/\s]+10',  # "6/10" format
             
             # German patterns (backup)

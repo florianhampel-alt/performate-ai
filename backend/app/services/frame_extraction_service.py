@@ -289,28 +289,34 @@ class FrameExtractionService:
             return None
     
     def get_frame_analysis_prompt(self, sport_type: str = "climbing") -> str:
-        """Force AI to provide concrete numeric analysis"""
+        """AI prompt focused on visual analysis to reduce hallucinations"""
         if sport_type in ['climbing', 'bouldering']:
-            return """Analyze this indoor climbing wall setup and route characteristics.
+            return """IMPORTANT: Analyze ONLY what you can directly observe in this specific climbing frame image. Do not make assumptions about the entire route.
 
-Provide your assessment in this exact format:
+First, describe what you actually see:
+- What colors are the climbing holds that are visible?
+- What is the climber's body position and technique?
+- What type of holds can you identify (jugs, crimps, slopers)?
+- What is the wall angle (vertical, overhang, slab)?
 
-1. TECHNIQUE RATING: [1-10]/10
-2. ESTIMATED TOTAL MOVES: [5-25] moves
-3. ROUTE DIFFICULTY: [1-10]/10
-4. HOLD ANALYSIS: [describe hold colors and types visible]
-5. MOVEMENT QUALITY: [brief technique assessment]
-6. TRAINING TIP: [specific climbing improvement suggestion]
+Then provide your assessment in this exact format:
+
+1. TECHNIQUE RATING: [1-10]/10 (based on visible body position and movement)
+2. VISIBLE MOVES IN FRAME: [1-5] moves (only count holds/moves you can actually see)
+3. VISUAL DIFFICULTY: [1-10]/10 (based on visible hold types and wall angle only)
+4. HOLD ANALYSIS: [describe only the hold colors and types you can actually see]
+5. MOVEMENT QUALITY: [assess only the visible technique and body position]
+6. TRAINING TIP: [suggestion based on what you observe]
 
 Example format:
-1. TECHNIQUE RATING: 8/10
-2. ESTIMATED TOTAL MOVES: 12 moves
-3. ROUTE DIFFICULTY: 6/10
-4. HOLD ANALYSIS: Green jugs and red crimps on vertical surface
-5. MOVEMENT QUALITY: Good balance and reach
-6. TRAINING TIP: Improve footwork precision
+1. TECHNIQUE RATING: 7/10
+2. VISIBLE MOVES IN FRAME: 3 moves  
+3. VISUAL DIFFICULTY: 5/10
+4. HOLD ANALYSIS: White jugs and small crimps visible
+5. MOVEMENT QUALITY: Good body positioning, stable grip
+6. TRAINING TIP: Focus on hip positioning
 
-Analyze the climbing route now:"""
+Remember: Only analyze what you can directly see in this frame. Do not estimate total route length or make assumptions about unseen parts."""
         else:
             return f"Analyze {sport_type}: rate 1-10, count total moves as number, brief tip."
 
