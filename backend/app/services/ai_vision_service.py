@@ -311,6 +311,10 @@ class AIVisionService:
             visual_difficulty = self._extract_visual_difficulty(analysis_text)
             logger.warning(f"🎯 EXTRACTED VISUAL DIFFICULTY: {visual_difficulty} from AI response")
             
+            # Extract route color from AI response
+            route_color = self._extract_route_color(analysis_text)
+            logger.warning(f"🎨 EXTRACTED ROUTE COLOR: {route_color} from AI response")
+            
             # Extract holds information
             holds = self._extract_holds_info(analysis_text)
             
@@ -325,6 +329,7 @@ class AIVisionService:
                 "technique_score": technique_score,
                 "move_count": move_count,
                 "visual_difficulty": visual_difficulty,
+                "route_color": route_color,
                 "analysis_text": analysis_text,
                 "holds": holds,
                 "insights": insights,
@@ -385,13 +390,10 @@ class AIVisionService:
             if match:
                 move_count = int(match.group(1))
                 logger.warning(f"🎯 Pattern {i+1} matched: '{match.group(0)}' -> {move_count} moves")
-                # Validate reasonable range for climbing - stricter validation to catch hallucinations
-                if 3 <= move_count <= 8:  # Most short videos have 3-8 moves max
+                # Validate reasonable range for climbing - allow full range as routes vary greatly
+                if 3 <= move_count <= 25:
                     logger.warning(f"✅ AI detected {move_count} moves from pattern: '{match.group(0)}'")
                     return move_count
-                elif 9 <= move_count <= 25:
-                    # AI might be hallucinating - log but don't use
-                    logger.warning(f"⚠️ Move count {move_count} seems too high for short video, treating as AI hallucination")
                 else:
                     logger.warning(f"❌ Move count {move_count} out of range (3-25), trying next pattern")
         
@@ -492,6 +494,57 @@ class AIVisionService:
             logger.warning(f"⚠️ EMERGENCY: Using fallback visual difficulty {visual_difficulty} to prevent system failure")
         
         return visual_difficulty
+    
+    def _extract_route_color(self, text: str) -> str:
+        """Extract route color from AI analysis text"""
+        text_lower = text.lower()
+        
+        # Look for color mentions in the AI response
+        color_patterns = [
+            r'\b(red|rot|roten?)\b',
+            r'\b(green|grün|grünen?)\b', 
+            r'\b(blue|blau|blauen?)\b',
+            r'\b(yellow|gelb|gelben?)\b',
+            r'\b(orange|orangen?)\b',
+            r'\b(purple|lila|violett)\b',
+            r'\b(pink|rosa)\b',
+            r'\b(white|weiß|weißen?)\b',
+            r'\b(black|schwarz|schwarzen?)\b',
+        ]
+        
+        color_map = {
+            'red': 'rot', 'rot': 'rot', 'rote': 'rot', 'roten': 'rot',
+            'green': 'grün', 'grün': 'grün', 'grüne': 'grün', 'grünen': 'grün',
+            'blue': 'blau', 'blau': 'blau', 'blaue': 'blau', 'blauen': 'blau',
+            'yellow': 'gelb', 'gelb': 'gelb', 'gelbe': 'gelb', 'gelben': 'gelb',
+            'orange': 'orange', 'orangen': 'orange',
+            'purple': 'lila', 'lila': 'lila', 'violett': 'lila',
+            'pink': 'rosa', 'rosa': 'rosa',
+            'white': 'weiß', 'weiß': 'weiß', 'weiße': 'weiß', 'weißen': 'weiß',
+            'black': 'schwarz', 'schwarz': 'schwarz', 'schwarze': 'schwarz', 'schwarzen': 'schwarz'
+        }
+        
+        for pattern in color_patterns:
+            match = re.search(pattern, text_lower)
+            if match:
+                color_word = match.group(1).lower()
+                if color_word in color_map:
+                    logger.warning(f"🎨 Detected route color: {color_map[color_word]} from '{match.group(0)}'")
+                    return color_map[color_word]
+        
+        # Fallback: analyze most common colors mentioned in climbing context
+        if any(word in text_lower for word in ['red', 'rot']):
+            return 'rot'
+        elif any(word in text_lower for word in ['green', 'grün']):
+            return 'grün'
+        elif any(word in text_lower for word in ['blue', 'blau']):
+            return 'blau'
+        elif any(word in text_lower for word in ['yellow', 'gelb']):
+            return 'gelb'
+        
+        # Default fallback
+        logger.warning(f"🎨 No route color detected, using default 'unbekannt'")
+        return 'unbekannt'
     
     def _extract_holds_info(self, text: str) -> List[Dict[str, Any]]:
         """Extract hold information from analysis text"""
@@ -672,8 +725,20 @@ class AIVisionService:
             raise Exception("No visual difficulty data found in frame analyses")
         avg_visual_difficulty = sum(visual_difficulties) / len(visual_difficulties)
         
-        # Convert numerical difficulty to grade string
-        difficulty = self._convert_difficulty_to_grade(avg_visual_difficulty, sport_type)
+        # Collect route colors from AI analysis
+        route_colors = [fa.get("route_color", "unbekannt") for fa in frame_analyses if fa.get("route_color")]
+        # Use most common color, or first one if all different
+        if route_colors:
+            # Count occurrences and pick most frequent
+            from collections import Counter
+            most_common_color = Counter(route_colors).most_common(1)[0][0]
+        else:
+            most_common_color = "unbekannt"
+        
+        logger.warning(f"🎨 DETECTED ROUTE COLORS: {route_colors}, using: {most_common_color}")
+        
+        # Convert numerical difficulty to grade string with route color
+        difficulty = self._convert_difficulty_to_grade(avg_visual_difficulty, most_common_color)
         logger.info(f"Using AI visual difficulty: {avg_visual_difficulty:.1f} -> {difficulty}")
         
         # Use AI-extracted move counts instead of route_points length
@@ -715,22 +780,26 @@ class AIVisionService:
             # Cycle through different hold types
             return hold_types[(index % (len(hold_types) - 2)) + 1]
     
-    def _convert_difficulty_to_grade(self, visual_difficulty: float, sport_type: str) -> str:
-        """Convert numerical visual difficulty to climbing grade"""
+    def _convert_difficulty_to_grade(self, visual_difficulty: float, route_color: str) -> str:
+        """Convert numerical visual difficulty to climbing grade with route color"""
+        # Map difficulty to French grade only
         if visual_difficulty >= 9:
-            return "7a+ / V8"
+            grade = "7a+"
         elif visual_difficulty >= 8:
-            return "6c+ / V6"
+            grade = "6c+"
         elif visual_difficulty >= 7:
-            return "6b / V5"
+            grade = "6b"
         elif visual_difficulty >= 6:
-            return "6a / V4"
+            grade = "6a"
         elif visual_difficulty >= 5:
-            return "5c / V3"
+            grade = "5c"
         elif visual_difficulty >= 4:
-            return "5a / V1"
+            grade = "5a"
         else:
-            return "4a / VB"
+            grade = "4a"
+        
+        # Combine with route color
+        return f"{grade} / {route_color}"
     
     def _estimate_difficulty(self, avg_score: float, sport_type: str) -> str:
         """Estimate climbing difficulty based on AI analysis"""
