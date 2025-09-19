@@ -1,14 +1,28 @@
 {
-  "framework": "nextjs",
-  "buildCommand": "cd frontend && npm run build",
-  "devCommand": "cd frontend && npm run dev",
-  "installCommand": "cd frontend && npm install",
-  "outputDirectory": "frontend/.next",
-  "functions": {
-    "frontend/app/**/*.tsx": {
-      "runtime": "@vercel/node"
+  "name": "performate-ai-frontend",
+  "version": 2,
+  "builds": [
+    {
+      "src": "frontend/package.json",
+      "use": "@vercel/next",
+      "config": {
+        "distDir": ".next"
+      }
     }
-  },
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "https://performate-ai-backend.onrender.com/$1"
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "frontend/$1"
+    }
+  ],
   "env": {
     "NEXT_PUBLIC_API_URL": "https://performate-ai-backend.onrender.com",
     "NEXT_PUBLIC_APP_NAME": "Performate AI",
@@ -23,7 +37,7 @@
           "value": "nosniff"
         },
         {
-          "key": "X-Frame-Options", 
+          "key": "X-Frame-Options",
           "value": "DENY"
         },
         {
@@ -31,12 +45,6 @@
           "value": "1; mode=block"
         }
       ]
-    }
-  ],
-  "rewrites": [
-    {
-      "source": "/api/:path*",
-      "destination": "https://performate-ai-backend.onrender.com/:path*"
     }
   ]
 }
