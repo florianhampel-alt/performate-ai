@@ -152,12 +152,13 @@ class RouteAnalysisService:
             if indicators:
                 reasoning_parts.extend(indicators)
         
-        # Calculate base difficulty from hold types
-        base_difficulty = 5.0  # Default moderate difficulty
-        if hold_types:
-            hold_difficulties = [self.hold_difficulty_map.get(hold_type, 5.0) for hold_type in hold_types]
-            base_difficulty = statistics.mean(hold_difficulties)
-            reasoning_parts.append(f"Hold types: {', '.join(set(hold_types))}")
+        # Calculate base difficulty from hold types - ONLY if we have actual data
+        if not hold_types:
+            raise ValueError("Cannot assess difficulty - no hold type data from AI analysis")
+        
+        hold_difficulties = [self.hold_difficulty_map.get(hold_type, 5.0) for hold_type in hold_types]
+        base_difficulty = statistics.mean(hold_difficulties)
+        reasoning_parts.append(f"Hold types: {', '.join(set(hold_types))}")
         
         # Apply wall angle modifier
         angle_modifier = 1.0
@@ -224,8 +225,8 @@ class RouteAnalysisService:
                 actual_moves.append(moves)
         
         if not actual_moves:
-            # Fallback - minimal moves if no data available
-            return max(3, min(8, int(video_duration / 4)))  # Conservative estimate
+            # No data available - cannot determine moves without AI analysis
+            raise ValueError("Cannot count moves - no AI data available")
         
         # Use the maximum observed moves (represents total moves made)
         total_moves = max(actual_moves)
@@ -245,7 +246,7 @@ class RouteAnalysisService:
                 angles.append(angle)
         
         if not angles:
-            return 'vertical'
+            raise ValueError("Cannot determine wall angle - no AI data available")
         
         # Return most common angle
         from collections import Counter
@@ -255,7 +256,9 @@ class RouteAnalysisService:
         """Create performance segments based on technique scores"""
         if len(frame_analyses) < 2:
             # Single frame - create one segment
-            raw_score = frame_analyses[0].get('technique_score', 7.0)
+            raw_score = frame_analyses[0].get('technique_score')
+            if raw_score is None:
+                raise ValueError("Cannot create performance segment - no technique score from AI")
             score = raw_score / 10.0  # Convert AI score 1-10 to 0.1-1.0
             return [{
                 "time_start": 0.0,
@@ -268,7 +271,9 @@ class RouteAnalysisService:
         for i, analysis in enumerate(frame_analyses):
             timestamp = analysis.get('timestamp', 0)
             # AI returns scores from 1-10, convert to 0.1-1.0 properly
-            raw_score = analysis.get('technique_score', 7.0)
+            raw_score = analysis.get('technique_score')
+            if raw_score is None:
+                raise ValueError(f"Cannot create performance segment - no technique score from AI for frame at {timestamp}s")
             score = raw_score / 10.0  # Convert 6.0 -> 0.60, not 6.0 -> 0.06
             
             # Calculate segment boundaries

@@ -384,19 +384,15 @@ class AIVisionService:
         # Intelligent fallback - prevent system crash
         logger.error(f"❌ Could not extract move count from AI response")
         
-        # Check if AI is refusing analysis or giving guidance
+        # AI analysis failed - cannot provide real data
         if any(phrase in text.lower() for phrase in [
             "unable to analyze", "can't analyze", "cannot analyze", 
             "guide you", "general template", "hypothetical", "provide a general",
             "sorry", "can't assist", "cannot assist", "i'm sorry"
         ]):
-            # AI is refusing - use conservative estimate for actual moves made
-            move_count = 4  # Conservative estimate for actual moves in video
-            logger.warning(f"🤖 INTELLIGENT FALLBACK: AI refusing analysis, using realistic actual move count {move_count}")
+            raise ValueError("AI refused to analyze video - cannot provide move count data")
         else:
-            # AI tried but format was unparseable - use conservative fallback
-            move_count = 5  # Conservative estimate for actual moves made
-            logger.warning(f"⚠️ EMERGENCY: Using realistic actual moves fallback count {move_count} to prevent system failure")
+            raise ValueError("AI response could not be parsed - no move count data available")
         
         return move_count
     
@@ -459,26 +455,15 @@ class AIVisionService:
         # Intelligent fallback - prevent system crash
         logger.error(f"❌ Could not extract visual difficulty from AI response")
         
-        # Check if AI is refusing analysis or giving guidance
+        # AI analysis failed - cannot provide real difficulty data  
         if any(phrase in text.lower() for phrase in [
             "unable to analyze", "can't analyze", "cannot analyze", 
             "guide you", "general template", "hypothetical", "provide a general",
             "sorry", "can't assist", "cannot assist", "i'm sorry"
         ]):
-            # AI is refusing - estimate based on hold types mentioned or use moderate difficulty
-            if any(word in text.lower() for word in ['crimp', 'sloper', 'pinch']):
-                visual_difficulty = 6.0  # Harder holds suggest higher difficulty
-            elif any(word in text.lower() for word in ['jug', 'bucket', 'large']):
-                visual_difficulty = 4.0  # Easy holds suggest lower difficulty
-            else:
-                visual_difficulty = 5.0  # Moderate difficulty for unknown
-            logger.warning(f"🤖 INTELLIGENT FALLBACK: AI refusing analysis, estimated difficulty {visual_difficulty} from hold context")
+            raise ValueError("AI refused to analyze video - cannot provide difficulty data")
         else:
-            # AI tried but format was unparseable - use standard fallback
-            visual_difficulty = 5.0
-            logger.warning(f"⚠️ EMERGENCY: Using fallback visual difficulty {visual_difficulty} to prevent system failure")
-        
-        return visual_difficulty
+            raise ValueError("AI response could not be parsed - no difficulty data available")
     
     def _extract_route_color(self, text: str) -> str:
         """Extract route color from AI analysis text - focus on the color the climber is actually using"""
@@ -560,7 +545,7 @@ class AIVisionService:
                 logger.warning(f"🧗 Extracted wall angle: {angle}")
                 return angle
         
-        return 'vertical'  # Default fallback
+        raise ValueError("Wall angle not found in AI response - no angle data available")
     
     def _extract_detailed_hold_analysis(self, text: str) -> Dict[str, Any]:
         """Extract detailed hold analysis from enhanced AI response"""
