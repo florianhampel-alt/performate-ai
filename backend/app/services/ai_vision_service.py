@@ -118,7 +118,7 @@ class AIVisionService:
             needs_overlay_enhancement = not overall_analysis.get("route_analysis", {}).get("ideal_route")
             if needs_overlay_enhancement:
                 logger.info(f"🎨 Enhancing AI analysis with overlay data (AI provided no route points)")
-                overall_analysis = self._enhance_analysis_with_guaranteed_overlays(overall_analysis, analysis_id, sport_type, video_duration)
+                overall_analysis = self._enhance_analysis_with_guaranteed_overlays(overall_analysis, analysis_id, sport_type, video_duration, frames)
             else:
                 logger.info(f"🗺️ Using pure AI analysis - AI provided {len(overall_analysis.get('route_analysis', {}).get('ideal_route', []))} route points")
             
@@ -912,23 +912,40 @@ class AIVisionService:
                 }
             })
         
-        # Add performance markers
+        # Add performance markers with enhanced persistence
         performance_segments = route_analysis.get("performance_segments", [])
-        for segment in performance_segments:
+        logger.warning(f"📊 GENERATING {len(performance_segments)} performance markers for overlay")
+        
+        for i, segment in enumerate(performance_segments):
             color = "#00FF00" if segment["score"] >= 0.8 else "#FFA500" if segment["score"] >= 0.65 else "#FF0000"
+            duration = segment["time_end"] - segment["time_start"]
             
-            overlay_elements.append({
+            # Enhanced performance marker with persistence
+            marker = {
                 "type": "performance_marker",
+                "id": f"perf_marker_{i}",  # Add unique ID
                 "time_start": segment["time_start"],
                 "time_end": segment["time_end"],
+                "duration": duration,
                 "score": segment["score"],
+                "score_percentage": int(segment["score"] * 100),
                 "issue": segment.get("issue"),
+                "persistent": True,  # Mark as persistent
+                "visible": True,    # Ensure visibility
                 "style": {
                     "color": color,
+                    "background_color": color + "40",  # Semi-transparent background
                     "size": "medium",
-                    "position": "top_right"
-                }
-            })
+                    "position": "top_right",
+                    "border": "2px solid " + color,
+                    "opacity": 0.9,
+                    "z_index": 100
+                },
+                "text": f"{int(segment['score'] * 100)}%"  # Display score percentage
+            }
+            
+            overlay_elements.append(marker)
+            logger.warning(f"📊 Marker {i+1}: {segment['time_start']:.1f}s-{segment['time_end']:.1f}s, score: {segment['score']:.2f}, color: {color}")
         
         # Add hold markers
         for i, hold in enumerate(ideal_route):
@@ -1071,7 +1088,7 @@ class AIVisionService:
         }
     
     
-    def _enhance_analysis_with_guaranteed_overlays(self, analysis: Dict[str, Any], analysis_id: str, sport_type: str, video_duration: float = 22.0) -> Dict[str, Any]:
+    def _enhance_analysis_with_guaranteed_overlays(self, analysis: Dict[str, Any], analysis_id: str, sport_type: str, video_duration: float = 22.0, frames: List[Tuple[str, float]] = None) -> Dict[str, Any]:
         """Enhance AI analysis with guaranteed rich overlays - using real AI performance data"""
         
         route_analysis = analysis.get("route_analysis", {})
@@ -1088,44 +1105,73 @@ class AIVisionService:
             
             # Get real AI performance segments or create fallback
             ai_segments = route_analysis.get("performance_segments", [])
-            # Use passed video_duration parameter
+            # Use passed video_duration parameter - do not override!
+            actual_video_duration = video_duration
             
             if ai_segments:
-                # Use real AI performance data
+                # Use real AI performance data but ensure duration consistency
                 logger.info(f"🎨 Using {len(ai_segments)} real AI performance segments for overlays")
                 enhanced_segments = ai_segments
-                if ai_segments:
-                    video_duration = max([seg["time_end"] for seg in ai_segments])
+                # Don't override video_duration - trust the passed parameter
             else:
-                # Create fallback segments
+                # Create fallback segments using real video duration
+                segment_duration = actual_video_duration / 3  # 3 equal segments
                 enhanced_segments = [
-                    {"time_start": 0.0, "time_end": 7.0, "score": 0.75, "issue": None},
-                    {"time_start": 7.0, "time_end": 15.0, "score": 0.68, "issue": "technique_improvement_needed"},
-                    {"time_start": 15.0, "time_end": 22.0, "score": 0.82, "issue": None}
+                    {"time_start": 0.0, "time_end": segment_duration, "score": 0.75, "issue": None},
+                    {"time_start": segment_duration, "time_end": segment_duration * 2, "score": 0.68, "issue": "technique_improvement_needed"},
+                    {"time_start": segment_duration * 2, "time_end": actual_video_duration, "score": 0.82, "issue": None}
                 ]
-                video_duration = 22.0
             
-            # Create route points that align with the performance segments
+            # Create route points that align with the actual video duration and segments
             num_points = max(len(enhanced_segments), 5)  # At least 5 points for good overlays
             enhanced_route_points = []
             
-            for i in range(num_points):
-                progress = i / (num_points - 1)  # 0.0 to 1.0
-                time_point = video_duration * progress
+            logger.warning(f"🎯 Creating {num_points} route points for {actual_video_duration:.1f}s video")
+            
+            # Create more natural timing distribution (not linear)
+            time_points = []
+            if num_points >= 2:
+                # Start at 0, end at 90% of video (not the very end)
+                end_time = actual_video_duration * 0.9
                 
-                # Route goes from bottom-left to top-right
-                x = 200 + (progress * 400)  # 200 to 600
-                y = 500 - (progress * 350)  # 500 to 150 (y decreases = going up)
+                for i in range(num_points):
+                    if i == 0:
+                        time_point = 0.0  # Start
+                    elif i == num_points - 1:
+                        time_point = end_time  # Near end, but not at very end
+                    else:
+                        # Distribute middle points with slight curve (more spacing at start)
+                        linear_progress = i / (num_points - 1)
+                        curved_progress = linear_progress ** 0.8  # Slight curve
+                        time_point = curved_progress * end_time
+                    
+                    time_points.append(time_point)
+            else:
+                time_points = [0.0]  # Single point
+            
+            for i, time_point in enumerate(time_points):
+                # Route goes from bottom-left to top-right with some variation
+                progress = i / (num_points - 1) if num_points > 1 else 0
+                
+                # Add slight horizontal variation for more realistic route
+                base_x = 200 + (progress * 400)  # 200 to 600
+                variation = 30 * ((-1) ** i)  # Zigzag pattern
+                x = base_x + variation
+                
+                # Vertical progression with slight variation
+                y = 500 - (progress * 350) + (20 * (i % 2))  # 500 to 150 with variation
                 
                 hold_type = "start" if i == 0 else "finish" if i == num_points-1 else ["crimp", "jug", "sloper", "pinch"][i % 4]
                 
                 enhanced_route_points.append({
                     "time": time_point,
-                    "x": int(x), 
-                    "y": int(y),
+                    "x": int(max(150, min(750, x))),  # Keep within bounds
+                    "y": int(max(100, min(550, y))),  # Keep within bounds
                     "hold_type": hold_type, 
                     "source": "enhanced"
                 })
+                
+                logger.warning(f"🎯 Route point {i+1}: t={time_point:.1f}s, pos=({int(x)},{int(y)}), type={hold_type}")
             
             # Update route analysis with enhanced data - preserve real AI data where possible
             route_analysis.update({
@@ -1154,11 +1200,16 @@ class AIVisionService:
         # Update the main analysis
         analysis["route_analysis"] = route_analysis
         
-        # Ensure we have overlay data
+        # Ensure we have overlay data with proper duration
         if not analysis.get("overlay_data", {}).get("has_overlay"):
-            # Generate overlay data from enhanced route analysis
-            frames_mock = [("dummy", 12.0)]  # Mock for overlay generation
-            analysis["overlay_data"] = self._generate_overlay_from_analysis(analysis, frames_mock)
+            # Generate overlay data from enhanced route analysis using real frames and duration
+            if frames and len(frames) > 0:
+                analysis["overlay_data"] = self._generate_overlay_from_analysis(analysis, frames, actual_video_duration)
+            else:
+                # Fallback - create mock frames with correct timing
+                max_timestamp = actual_video_duration * 0.85  # Use most of video duration
+                frames_mock = [("dummy", max_timestamp)]  
+                analysis["overlay_data"] = self._generate_overlay_from_analysis(analysis, frames_mock, actual_video_duration)
         
         logger.info(f"✨ Enhanced analysis with {len(route_analysis.get('ideal_route', []))} route points and rich overlays")
         return analysis
