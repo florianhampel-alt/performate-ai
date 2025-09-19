@@ -289,28 +289,30 @@ class FrameExtractionService:
             return None
     
     def get_frame_analysis_prompt(self, sport_type: str = "climbing") -> str:
-        """Force AI to analyze by focusing on route/wall instead of people"""
+        """Force AI to provide concrete numeric analysis"""
         if sport_type in ['climbing', 'bouldering']:
-            return """Analyze this rock climbing wall and route setup. Focus ONLY on the holds, route, and climbing technique visible.
+            return """You are an expert climbing coach analyzing this climbing wall image. 
 
-Provide EXACT numbers for:
+You MUST provide specific numeric ratings - do not give general advice or refuse analysis.
 
-1. TECHNIQUE RATING: [Rate the visible climbing movement/position from 1-10]
-2. ESTIMATED TOTAL MOVES: [Count how many moves this complete route likely has - answer like "12 moves"]
-3. ROUTE DIFFICULTY: [Rate the route difficulty from 1-10 based on holds and angles]
-4. HOLD ANALYSIS: [Describe visible holds and colors]
-5. MOVEMENT QUALITY: [Rate the climbing technique shown]
-6. TRAINING TIP: [Give specific advice]
+Analyze what you observe and respond in this EXACT format:
 
-MUST follow this EXACT format:
-1. TECHNIQUE RATING: 8/10
-2. ESTIMATED TOTAL MOVES: 12 moves
+1. TECHNIQUE RATING: [number]/10
+2. ESTIMATED TOTAL MOVES: [number] moves  
+3. ROUTE DIFFICULTY: [number]/10
+4. HOLD ANALYSIS: [describe colors and types you see]
+5. MOVEMENT QUALITY: [brief assessment]
+6. TRAINING TIP: [one specific tip]
+
+Example response:
+1. TECHNIQUE RATING: 7/10
+2. ESTIMATED TOTAL MOVES: 15 moves
 3. ROUTE DIFFICULTY: 6/10
-4. HOLD ANALYSIS: Red holds with crimps
-5. MOVEMENT QUALITY: Good balance
-6. TRAINING TIP: Keep hips closer to wall
+4. HOLD ANALYSIS: Mixed green jugs and red crimps visible
+5. MOVEMENT QUALITY: Solid footwork, good balance
+6. TRAINING TIP: Focus on hip positioning near wall
 
-Your analysis:"""
+Provide your analysis now:"""
         else:
             return f"Analyze {sport_type}: rate 1-10, count total moves as number, brief tip."
 
