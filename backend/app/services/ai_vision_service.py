@@ -664,8 +664,16 @@ class AIVisionService:
         difficulty = self._convert_difficulty_to_grade(avg_visual_difficulty, sport_type)
         logger.info(f"Using AI visual difficulty: {avg_visual_difficulty:.1f} -> {difficulty}")
         
-        final_total_moves = len(route_points)
-        logger.warning(f"🔢 FINAL total_moves in route_analysis: {final_total_moves} (route_points length: {len(route_points)})")
+        # Use AI-extracted move counts instead of route_points length
+        ai_move_counts = [fa.get("move_count", 0) for fa in frame_analyses if fa.get("move_count", 0) > 0]
+        if ai_move_counts:
+            # Use median of AI-extracted move counts for stability
+            final_total_moves = int(sorted(ai_move_counts)[len(ai_move_counts)//2])
+            logger.warning(f"🔢 FINAL total_moves from AI: {final_total_moves} (median of {ai_move_counts})")
+        else:
+            # Fallback to route_points if no AI move counts available
+            final_total_moves = len(route_points)
+            logger.warning(f"🔢 FINAL total_moves from route_points: {final_total_moves} (route_points length: {len(route_points)})")
         
         return {
             "route_analysis": {
