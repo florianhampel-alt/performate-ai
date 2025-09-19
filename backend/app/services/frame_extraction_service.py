@@ -301,7 +301,7 @@ class FrameExtractionService:
 
 TECHNIQUE_SCORE: [1-10]
 ROUTE_COLOR: [red/blue/green/yellow/orange/white/black/purple/pink]
-MOVES_VISIBLE: [1-5] 
+MOVES_MADE: [1-8] (count only moves actually performed in this video)
 HOLD_TYPE: [jug/crimp/sloper/pinch/pocket]
 HOLD_SIZE: [large/medium/small/tiny]
 WALL_ANGLE: [vertical/slight_overhang/overhang/steep]
@@ -311,12 +311,12 @@ MOVEMENT_QUALITY: [poor/average/good/excellent]
 Example:
 TECHNIQUE_SCORE: 7
 ROUTE_COLOR: blue
-MOVES_VISIBLE: 2
+MOVES_MADE: 4
 HOLD_TYPE: crimp
 HOLD_SIZE: small
 WALL_ANGLE: slight_overhang
 VISUAL_DIFFICULTY: 6
-MOVEMENT_QUALITY: good"""
+MOVEMENT_QUALITY: good
         else:
             return f"Analyze {sport_type}: rate technique 1-10, count moves, assess difficulty independent of colors."
 

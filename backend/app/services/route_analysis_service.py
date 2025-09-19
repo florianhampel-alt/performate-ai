@@ -69,8 +69,8 @@ class RouteAnalysisService:
         # 2. Assess difficulty based on holds, angles, technique (NOT color)
         difficulty_assessment = self._assess_difficulty_from_holds(frame_analyses)
         
-        # 3. Calculate total moves from frame progression
-        total_moves = self._estimate_total_moves(frame_analyses, video_duration)
+        # 3. Count actual moves made in the video
+        total_moves = self._count_actual_moves(frame_analyses, video_duration)
         
         # 4. Generate performance segments based on technique scores
         performance_segments = self._create_performance_segments(frame_analyses, video_duration)
@@ -213,34 +213,27 @@ class RouteAnalysisService:
         else:
             return "4a"
     
-    def _estimate_total_moves(self, frame_analyses: List[Dict[str, Any]], video_duration: float) -> int:
-        """Estimate total moves for the route based on frame analysis"""
-        # Get move counts from frames
-        frame_moves = []
+    def _count_actual_moves(self, frame_analyses: List[Dict[str, Any]], video_duration: float) -> int:
+        """Count actual moves made in the video (not estimated total route moves)"""
+        # Get the highest move count from any frame analysis
+        # This represents the total actual moves observed
+        actual_moves = []
         for analysis in frame_analyses:
             moves = analysis.get('move_count', 0)
             if moves > 0:
-                frame_moves.append(moves)
+                actual_moves.append(moves)
         
-        if not frame_moves:
-            # Fallback based on video duration
-            return max(4, min(12, int(video_duration / 3)))
+        if not actual_moves:
+            # Fallback - minimal moves if no data available
+            return max(3, min(8, int(video_duration / 4)))  # Conservative estimate
         
-        # Use conservative estimation
-        avg_moves_per_frame = statistics.mean(frame_moves)
+        # Use the maximum observed moves (represents total moves made)
+        total_moves = max(actual_moves)
         
-        # Estimate total based on video duration and visible moves
-        if video_duration <= 15:
-            total_estimate = int(avg_moves_per_frame * 1.5)  # Short routes
-        elif video_duration <= 30:
-            total_estimate = int(avg_moves_per_frame * 2.0)  # Medium routes
-        else:
-            total_estimate = int(avg_moves_per_frame * 2.5)  # Long routes
+        # Ensure reasonable range for actual moves in a video
+        total_moves = max(3, min(12, total_moves))
         
-        # Clamp to reasonable range
-        total_moves = max(4, min(15, total_estimate))
-        
-        logger.warning(f"🔢 Move estimation: {avg_moves_per_frame:.1f} avg per frame → {total_moves} total moves")
+        logger.warning(f"🔢 Actual moves counted: {max(actual_moves) if actual_moves else 0} moves made in video")
         return total_moves
     
     def _determine_wall_angle(self, frame_analyses: List[Dict[str, Any]]) -> str:

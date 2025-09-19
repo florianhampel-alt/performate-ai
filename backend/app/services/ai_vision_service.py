@@ -245,8 +245,8 @@ class AIVisionService:
                         parsed_data['technique_score'] = float(value) if value.isdigit() and 1 <= int(value) <= 10 else 7.0
                     elif key == 'ROUTE_COLOR':
                         parsed_data['route_color'] = value.lower() if value.lower() in ['red','blue','green','yellow','orange','white','black','purple','pink'] else 'unbekannt'
-                    elif key == 'MOVES_VISIBLE':
-                        parsed_data['move_count'] = int(value) if value.isdigit() and 1 <= int(value) <= 5 else 2
+                    elif key in ['MOVES_MADE', 'MOVES_VISIBLE']:  # Support both for compatibility
+                        parsed_data['move_count'] = int(value) if value.isdigit() and 1 <= int(value) <= 8 else 3
                     elif key == 'HOLD_TYPE':
                         parsed_data['hold_type'] = value.lower() if value.lower() in ['jug','crimp','sloper','pinch','pocket'] else 'jug'
                     elif key == 'HOLD_SIZE':
@@ -320,14 +320,19 @@ class AIVisionService:
         """Extract move count from AI analysis text with enhanced patterns"""
         logger.warning(f"🔍 MOVE EXTRACTION: Full AI text to analyze:\n{text}")
         
-        # Look for move count patterns (Updated for enhanced prompt)
+        # Look for move count patterns - focus on ACTUAL moves made
         move_patterns = [
-            # New enhanced patterns for frame-based analysis - FIRST PRIORITY
+            # New patterns for actual moves made - FIRST PRIORITY
+            r'moves made.*?[:\s]+(\d+)',        # "MOVES MADE: 4"
+            r'actual moves.*?[:\s]+(\d+)',      # "ACTUAL MOVES: 4"
+            r'moves performed.*?[:\s]+(\d+)',   # "MOVES PERFORMED: 4"
+            r'moves executed.*?[:\s]+(\d+)',    # "MOVES EXECUTED: 4"
+            # Legacy patterns for compatibility
             r'visible unique moves.*?[:\s]+(\d+)',  # "VISIBLE UNIQUE MOVES: 2"
             r'unique moves.*?[:\s]+(\d+)',         # "UNIQUE MOVES: 2"
-            r'visible moves in frame.*?[:\s]+(\d+)',  # "VISIBLE MOVES IN FRAME: 3" (legacy)
-            r'visible moves.*?[:\s]+(\d+)',  # "VISIBLE MOVES: 3" (legacy)
-            r'moves in frame.*?[:\s]+(\d+)',  # "MOVES IN FRAME: 3" (legacy)
+            r'visible moves in frame.*?[:\s]+(\d+)',  # "VISIBLE MOVES IN FRAME: 3"
+            r'visible moves.*?[:\s]+(\d+)',  # "VISIBLE MOVES: 3"
+            r'moves in frame.*?[:\s]+(\d+)',  # "MOVES IN FRAME: 3"
             r'estimated total moves.*?[:\s]+(\d+)',  # "ESTIMATED TOTAL MOVES: 12" (backup)
             r'total moves.*?[:\s]+(\d+)',  # "TOTAL MOVES: 12" (backup)
             r'(\d+)\s*moves?\b',  # "12 moves" (most likely format)
@@ -369,15 +374,9 @@ class AIVisionService:
             if match:
                 move_count = int(match.group(1))
                 logger.warning(f"🎯 Pattern {i+1} matched: '{match.group(0)}' -> {move_count} moves")
-                # Validate reasonable range - for frame-based analysis expect 1-5 visible moves, but allow broader range for compatibility
-                if 1 <= move_count <= 15:
+                # Validate reasonable range for actual moves made in video
+                if 1 <= move_count <= 12:
                     logger.warning(f"✅ AI detected {move_count} moves from pattern: '{match.group(0)}'")
-                    # If it's a high number and we're using frame-based analysis, scale it down
-                    if 'visible moves in frame' in match.group(0).lower() or 'moves in frame' in match.group(0).lower():
-                        # This is truly frame-based, should be 1-5
-                        if move_count > 5:
-                            move_count = min(5, move_count // 2)  # Scale down large numbers
-                            logger.warning(f"🔧 Scaled down frame-based move count to {move_count}")
                     return move_count
                 else:
                     logger.warning(f"❌ Move count {move_count} out of range (1-15), trying next pattern")
@@ -391,13 +390,13 @@ class AIVisionService:
             "guide you", "general template", "hypothetical", "provide a general",
             "sorry", "can't assist", "cannot assist", "i'm sorry"
         ]):
-            # AI is refusing - use realistic estimate for visible moves in single frame
-            move_count = 2  # Realistic for visible moves in a single frame
-            logger.warning(f"🤖 INTELLIGENT FALLBACK: AI refusing analysis, using realistic frame-based move count {move_count}")
+            # AI is refusing - use conservative estimate for actual moves made
+            move_count = 4  # Conservative estimate for actual moves in video
+            logger.warning(f"🤖 INTELLIGENT FALLBACK: AI refusing analysis, using realistic actual move count {move_count}")
         else:
-            # AI tried but format was unparseable - use conservative fallback for frame analysis
-            move_count = 3  # Conservative estimate for moves visible in one frame
-            logger.warning(f"⚠️ EMERGENCY: Using realistic frame-based fallback move count {move_count} to prevent system failure")
+            # AI tried but format was unparseable - use conservative fallback
+            move_count = 5  # Conservative estimate for actual moves made
+            logger.warning(f"⚠️ EMERGENCY: Using realistic actual moves fallback count {move_count} to prevent system failure")
         
         return move_count
     
