@@ -316,7 +316,7 @@ HOLD_TYPE: crimp
 HOLD_SIZE: small
 WALL_ANGLE: slight_overhang
 VISUAL_DIFFICULTY: 6
-MOVEMENT_QUALITY: good
+MOVEMENT_QUALITY: good"""
         else:
             return f"Analyze {sport_type}: rate technique 1-10, count moves, assess difficulty independent of colors."
 
