@@ -262,7 +262,8 @@ class RouteAnalysisService:
         """Create performance segments based on technique scores"""
         if len(frame_analyses) < 2:
             # Single frame - create one segment
-            score = frame_analyses[0].get('technique_score', 70) / 100
+            raw_score = frame_analyses[0].get('technique_score', 7.0)
+            score = raw_score / 10.0  # Convert AI score 1-10 to 0.1-1.0
             return [{
                 "time_start": 0.0,
                 "time_end": video_duration,
@@ -273,7 +274,9 @@ class RouteAnalysisService:
         segments = []
         for i, analysis in enumerate(frame_analyses):
             timestamp = analysis.get('timestamp', 0)
-            score = analysis.get('technique_score', 70) / 100
+            # AI returns scores from 1-10, convert to 0.1-1.0 properly
+            raw_score = analysis.get('technique_score', 7.0)
+            score = raw_score / 10.0  # Convert 6.0 -> 0.60, not 6.0 -> 0.06
             
             # Calculate segment boundaries
             if i == 0:

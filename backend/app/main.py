@@ -399,6 +399,7 @@ async def get_analysis_results(analysis_id: str):
             "unified_recommendations": analysis_result.get('recommendations', []),
             "route_analysis": {
                 "route_detected": route_analysis.get('route_detected', True),
+                "route_color": route_analysis.get('route_color', 'unbekannt'),  # Add route color
                 "difficulty_estimated": route_analysis.get('difficulty_estimated', 'Unknown'),
                 "total_moves": route_analysis.get('total_moves', 0),
                 "ideal_route": route_analysis.get('ideal_route', []),

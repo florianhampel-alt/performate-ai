@@ -20,7 +20,7 @@ class AIVisionService:
     def __init__(self):
         self.client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
         self.model = "gpt-4o"  # GPT-4 Vision model
-        self.max_tokens = 150  # BALANCED: Enough for useful AI insights but still very efficient
+        self.max_tokens = 300  # IMPROVED: More tokens for better route color and grip analysis
         # TEMPORARY: Enable AI analysis by default for testing (change back to 'false' later)
         ai_enabled_env = getattr(settings, 'ENABLE_AI_ANALYSIS', 'true')  # Changed default to 'true'
         self.ai_analysis_enabled = ai_enabled_env.lower() in ['true', '1', 'yes', 'on']
@@ -774,6 +774,7 @@ class AIVisionService:
         return {
             "route_analysis": {
                 "route_detected": True,
+                "route_color": route_color,  # Add route color for frontend display
                 "difficulty_estimated": difficulty,
                 "total_moves": total_moves,
                 "ideal_route": route_points,
