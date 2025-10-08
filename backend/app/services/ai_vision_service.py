@@ -20,7 +20,7 @@ class AIVisionService:
     def __init__(self):
         self.client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
         self.model = "gpt-4o"  # GPT-4 Vision model
-        self.max_tokens = 300  # IMPROVED: More tokens for better route color and grip analysis
+        self.max_tokens = 1500  # ENHANCED: More tokens for comprehensive analysis with detailed feedback
         # TEMPORARY: Enable AI analysis by default for testing (change back to 'false' later)
         ai_enabled_env = getattr(settings, 'ENABLE_AI_ANALYSIS', 'true')  # Changed default to 'true'
         self.ai_analysis_enabled = ai_enabled_env.lower() in ['true', '1', 'yes', 'on']
@@ -225,96 +225,278 @@ class AIVisionService:
         return frame_analyses
     
     def _parse_frame_analysis(self, analysis_text: str, timestamp: float) -> Dict[str, Any]:
-        """Parse optimized AI response with deterministic format"""
-        logger.info(f"🔍 PARSING AI RESPONSE: {analysis_text[:200]}...")
+        """Parse enhanced AI response with comprehensive climbing analysis"""
+        logger.info(f"🔍 PARSING ENHANCED AI RESPONSE: {len(analysis_text)} chars")
         
         try:
-            # Parse structured response format
-            parsed_data = {}
+            # Try to parse the new enhanced format first
+            enhanced_data = self._parse_enhanced_format(analysis_text)
+            if enhanced_data:
+                enhanced_data['timestamp'] = timestamp
+                logger.info(f"✅ Enhanced parsing successful: level={enhanced_data.get('climber_level', 'unknown')}")
+                return enhanced_data
             
-            # Simple line-by-line parsing for structured format
-            lines = analysis_text.strip().split('\n')
-            
-            for line in lines:
-                if ':' in line:
-                    key, value = line.split(':', 1)
-                    key = key.strip().upper()
-                    value = value.strip()
-                    
-                    if key == 'TECHNIQUE_SCORE':
-                        parsed_data['technique_score'] = float(value) if value.isdigit() and 1 <= int(value) <= 10 else 7.0
-                    elif key == 'ROUTE_COLOR':
-                        parsed_data['route_color'] = value.lower() if value.lower() in ['red','blue','green','yellow','orange','white','black','purple','pink'] else 'unbekannt'
-                    elif key in ['MOVES_MADE', 'MOVES_VISIBLE']:  # Support both for compatibility
-                        parsed_data['move_count'] = int(value) if value.isdigit() and 1 <= int(value) <= 8 else 3
-                    elif key == 'HOLD_TYPE':
-                        parsed_data['hold_type'] = value.lower() if value.lower() in ['jug','crimp','sloper','pinch','pocket'] else 'jug'
-                    elif key == 'HOLD_SIZE':
-                        parsed_data['hold_size'] = value.lower() if value.lower() in ['large','medium','small','tiny'] else 'medium'
-                    elif key == 'WALL_ANGLE':
-                        parsed_data['wall_angle'] = value.lower().replace('_', ' ') if 'overhang' in value.lower() or 'vertical' in value.lower() else 'vertical'
-                    elif key == 'VISUAL_DIFFICULTY':
-                        parsed_data['visual_difficulty'] = float(value) if value.isdigit() and 1 <= int(value) <= 10 else 5.0
-                    elif key == 'MOVEMENT_QUALITY':
-                        parsed_data['movement_quality'] = value.lower() if value.lower() in ['poor','average','good','excellent'] else 'average'
-            
-            # Ensure all required fields have defaults
-            technique_score = parsed_data.get('technique_score', 7.0)
-            route_color = parsed_data.get('route_color', 'unbekannt')
-            move_count = parsed_data.get('move_count', 2)
-            visual_difficulty = parsed_data.get('visual_difficulty', 5.0)
-            wall_angle = parsed_data.get('wall_angle', 'vertical')
-            
-            logger.info(f"✅ Parsed: score={technique_score}, color={route_color}, moves={move_count}, diff={visual_difficulty}")
-            
-            # Extract move count from AI response
-            move_count = self._extract_move_count(analysis_text)
-            logger.warning(f"🎯 EXTRACTED MOVE COUNT: {move_count} from AI response")
-            
-            # Extract visual difficulty from AI response
-            visual_difficulty = self._extract_visual_difficulty(analysis_text)
-            logger.warning(f"🎯 EXTRACTED VISUAL DIFFICULTY: {visual_difficulty} from AI response")
-            
-            # Extract route color from AI response (orientation only)
-            route_color = self._extract_route_color(analysis_text)
-            logger.warning(f"🎨 EXTRACTED ROUTE COLOR: {route_color} from AI response")
-            
-            # Extract enhanced analysis fields from new prompt structure
-            wall_angle = self._extract_wall_angle(analysis_text)
-            hold_analysis = self._extract_detailed_hold_analysis(analysis_text) 
-            difficulty_indicators = self._extract_difficulty_indicators(analysis_text)
-            
-            # Extract holds information
-            holds = self._extract_holds_info(analysis_text)
-            
-            # Extract key insights
-            insights = self._extract_insights(analysis_text)
-            
-            # Extract coordinates if mentioned
-            coordinates = self._extract_coordinates(analysis_text)
-            
-            logger.warning(f"🧗 ENHANCED DATA: Wall={wall_angle}, Holds={hold_analysis}, Indicators={difficulty_indicators}")
-            
-            return {
-                "timestamp": timestamp,
-                "technique_score": technique_score,
-                "move_count": move_count,
-                "visual_difficulty": visual_difficulty,
-                "route_color": route_color,
-                "wall_angle": wall_angle,
-                "hold_analysis": hold_analysis,
-                "difficulty_indicators": difficulty_indicators,
-                "analysis_text": analysis_text,
-                "holds": holds,
-                "insights": insights,
-                "coordinates": coordinates,
-                "movement_quality": self._assess_movement_quality(analysis_text)
-            }
+            # Fallback to legacy format parsing
+            logger.warning("🔄 Falling back to legacy parsing")
+            return self._parse_legacy_format(analysis_text, timestamp)
             
         except Exception as e:
-            logger.error(f"Failed to parse frame analysis: {str(e)}")
-            # No fallback data - let the exception propagate
-            raise Exception(f"Frame analysis parsing failed: {str(e)}")
+            logger.error(f"Failed to parse enhanced frame analysis: {str(e)}")
+            raise Exception(f"Enhanced frame analysis parsing failed: {str(e)}")
+    
+    def _parse_enhanced_format(self, analysis_text: str) -> Optional[Dict[str, Any]]:
+        """Parse new enhanced format with structured sections"""
+        import re
+        
+        parsed_data = {
+            'technique_score': 7.0,
+            'route_color': 'unbekannt', 
+            'move_count': 3,
+            'visual_difficulty': 5.0,
+            'wall_angle': 'vertical',
+            'climber_level': 'fortgeschritten',
+            'positive_aspects': [],
+            'improvement_areas': [],
+            'concrete_tips': [],
+            'analysis_text': analysis_text,
+            'enhanced_format': True
+        }
+        
+        # Extract route identification section
+        route_match = re.search(r'## Routenidentifikation\s*\n(.+?)(?=##|$)', analysis_text, re.DOTALL)
+        if route_match:
+            route_section = route_match.group(1)
+            
+            # Extract color
+            color_match = re.search(r'\*\*Farbe:\*\*\s*([^\n]+)', route_section)
+            if color_match:
+                color_raw = color_match.group(1).strip().lower()
+                color_map = {
+                    'rot': 'rot', 'red': 'rot',
+                    'blau': 'blau', 'blue': 'blau', 
+                    'grün': 'grün', 'green': 'grün',
+                    'gelb': 'gelb', 'yellow': 'gelb',
+                    'orange': 'orange',
+                    'lila': 'lila', 'purple': 'lila', 'violett': 'lila',
+                    'rosa': 'rosa', 'pink': 'rosa',
+                    'weiß': 'weiß', 'white': 'weiß',
+                    'schwarz': 'schwarz', 'black': 'schwarz'
+                }
+                for key, value in color_map.items():
+                    if key in color_raw:
+                        parsed_data['route_color'] = value
+                        break
+            
+            # Extract difficulty grade and convert to numerical
+            diff_match = re.search(r'\*\*Schwierigkeitsgrad:\*\*\s*([^\n]+)', route_section)
+            if diff_match:
+                difficulty_text = diff_match.group(1).strip()
+                parsed_data['visual_difficulty'] = self._extract_difficulty_from_grade(difficulty_text)
+            
+            # Extract wall angle/style
+            style_match = re.search(r'\*\*Stil:\*\*\s*([^\n]+)', route_section)
+            if style_match:
+                style = style_match.group(1).strip().lower()
+                if 'overhang' in style:
+                    parsed_data['wall_angle'] = 'overhang'
+                elif 'slab' in style:
+                    parsed_data['wall_angle'] = 'vertical'
+                elif 'roof' in style:
+                    parsed_data['wall_angle'] = 'steep_overhang'
+        
+        # Extract climber level
+        level_match = re.search(r'\*\*Geschätztes Level:\*\*\s*([^\n]+)', analysis_text)
+        if level_match:
+            level_text = level_match.group(1).strip().lower()
+            if 'anfänger' in level_text:
+                parsed_data['climber_level'] = 'anfänger'
+                parsed_data['technique_score'] = 5.0  # Typical beginner score
+            elif 'fortgeschritten' in level_text:
+                parsed_data['climber_level'] = 'fortgeschritten' 
+                parsed_data['technique_score'] = 7.0  # Typical advanced score
+            elif 'erfahren' in level_text:
+                parsed_data['climber_level'] = 'erfahren'
+                parsed_data['technique_score'] = 8.0  # Experienced score
+            elif 'profi' in level_text:
+                parsed_data['climber_level'] = 'profi'
+                parsed_data['technique_score'] = 9.0  # Professional score
+        
+        # Extract positive aspects
+        positive_match = re.search(r'## Positive Aspekte.*?\n(.*?)(?=##|$)', analysis_text, re.DOTALL)
+        if positive_match:
+            positive_text = positive_match.group(1)
+            positive_items = re.findall(r'✅\s*([^\n]+)', positive_text)
+            parsed_data['positive_aspects'] = positive_items[:5]  # Limit to 5
+        
+        # Extract improvement areas
+        improvement_match = re.search(r'## Verbesserungspotential.*?\n(.*?)(?=##|$)', analysis_text, re.DOTALL)
+        if improvement_match:
+            improvement_text = improvement_match.group(1)
+            improvement_items = re.findall(r'⚠️\s*([^\n]+)', improvement_text)
+            parsed_data['improvement_areas'] = improvement_items[:5]  # Limit to 5
+        
+        # Extract concrete tips
+        tips_match = re.search(r'## Konkrete Tipps.*?\n(.*?)(?=##|---|ANALYS|$)', analysis_text, re.DOTALL)
+        if tips_match:
+            tips_text = tips_match.group(1)
+            tips_items = re.findall(r'💡\s*([^\n]+)', tips_text)
+            parsed_data['concrete_tips'] = tips_items[:7]  # Limit to 7
+        
+        # Estimate move count based on difficulty and level
+        difficulty = parsed_data['visual_difficulty']
+        level = parsed_data['climber_level']
+        
+        if level == 'anfänger':
+            parsed_data['move_count'] = max(3, min(6, int(difficulty // 2) + 2))
+        elif level == 'fortgeschritten':
+            parsed_data['move_count'] = max(4, min(8, int(difficulty // 1.5) + 2))
+        else:  # erfahren, profi
+            parsed_data['move_count'] = max(5, min(12, int(difficulty) + 2))
+        
+        # Set wall angle and hold characteristics based on difficulty
+        if difficulty >= 7:
+            parsed_data['hold_analysis'] = {
+                'types': ['crimp', 'sloper'],
+                'sizes': ['small', 'tiny'], 
+                'description': 'Schwierige Griffe mit technischen Anforderungen'
+            }
+        elif difficulty >= 5:
+            parsed_data['hold_analysis'] = {
+                'types': ['crimp', 'jug'],
+                'sizes': ['medium', 'small'],
+                'description': 'Gemischte Griffe mit moderaten Anforderungen'
+            }
+        else:
+            parsed_data['hold_analysis'] = {
+                'types': ['jug'],
+                'sizes': ['large', 'medium'],
+                'description': 'Große, positive Griffe'
+            }
+        
+        # Set difficulty indicators
+        parsed_data['difficulty_indicators'] = [
+            f"Schwierigkeitsgrad entspricht {parsed_data['visual_difficulty']:.1f}/10",
+            f"Level: {level.title()}",
+            f"Geschätzte Züge: {parsed_data['move_count']}"
+        ]
+        
+        return parsed_data
+    
+    def _extract_difficulty_from_grade(self, grade_text: str) -> float:
+        """Convert climbing grade to numerical difficulty (1-10)"""
+        grade_lower = grade_text.lower()
+        
+        # V-Scale (Bouldering)
+        v_match = re.search(r'v(\d+)', grade_lower)
+        if v_match:
+            v_grade = int(v_match.group(1))
+            return min(10, max(1, v_grade * 1.2 + 2))  # V0=2, V8=12 -> capped at 10
+        
+        # French Scale (Sport climbing)
+        french_patterns = [
+            (r'7[abc]', 9.0), (r'6[cc]', 8.0), (r'6[bb]', 7.0),
+            (r'6[aa]', 6.0), (r'5[cc]', 5.0), (r'5[bb]', 4.5), 
+            (r'5[aa]', 4.0), (r'4[cc]', 3.5), (r'4[aa]', 3.0)
+        ]
+        
+        for pattern, difficulty in french_patterns:
+            if re.search(pattern, grade_lower):
+                return difficulty
+        
+        # Extract any number as fallback
+        number_match = re.search(r'(\d+(?:\.\d+)?)', grade_text)
+        if number_match:
+            return max(1.0, min(10.0, float(number_match.group(1))))
+        
+        return 5.0  # Default
+    
+    def _parse_legacy_format(self, analysis_text: str, timestamp: float) -> Dict[str, Any]:
+        """Parse legacy format for backward compatibility"""
+        parsed_data = {}
+        
+        # Simple line-by-line parsing for structured format
+        lines = analysis_text.strip().split('\n')
+        
+        for line in lines:
+            if ':' in line:
+                key, value = line.split(':', 1)
+                key = key.strip().upper()
+                value = value.strip()
+                
+                if key == 'TECHNIQUE_SCORE':
+                    parsed_data['technique_score'] = float(value) if value.isdigit() and 1 <= int(value) <= 10 else 7.0
+                elif key == 'ROUTE_COLOR':
+                    parsed_data['route_color'] = value.lower() if value.lower() in ['red','blue','green','yellow','orange','white','black','purple','pink'] else 'unbekannt'
+                elif key in ['MOVES_MADE', 'MOVES_VISIBLE']:  # Support both for compatibility
+                    parsed_data['move_count'] = int(value) if value.isdigit() and 1 <= int(value) <= 8 else 3
+                elif key == 'HOLD_TYPE':
+                    parsed_data['hold_type'] = value.lower() if value.lower() in ['jug','crimp','sloper','pinch','pocket'] else 'jug'
+                elif key == 'HOLD_SIZE':
+                    parsed_data['hold_size'] = value.lower() if value.lower() in ['large','medium','small','tiny'] else 'medium'
+                elif key == 'WALL_ANGLE':
+                    parsed_data['wall_angle'] = value.lower().replace('_', ' ') if 'overhang' in value.lower() or 'vertical' in value.lower() else 'vertical'
+                elif key == 'VISUAL_DIFFICULTY':
+                    parsed_data['visual_difficulty'] = float(value) if value.isdigit() and 1 <= int(value) <= 10 else 5.0
+                elif key == 'MOVEMENT_QUALITY':
+                    parsed_data['movement_quality'] = value.lower() if value.lower() in ['poor','average','good','excellent'] else 'average'
+        
+        # Ensure all required fields have defaults
+        technique_score = parsed_data.get('technique_score', 7.0)
+        route_color = parsed_data.get('route_color', 'unbekannt')
+        move_count = parsed_data.get('move_count', 2)
+        visual_difficulty = parsed_data.get('visual_difficulty', 5.0)
+        wall_angle = parsed_data.get('wall_angle', 'vertical')
+        
+        logger.info(f"✅ Legacy parsed: score={technique_score}, color={route_color}, moves={move_count}, diff={visual_difficulty}")
+        
+        # Extract additional fields using legacy extraction methods
+        try:
+            move_count = self._extract_move_count(analysis_text)
+        except:
+            move_count = parsed_data.get('move_count', 3)
+            
+        try:
+            visual_difficulty = self._extract_visual_difficulty(analysis_text)
+        except:
+            visual_difficulty = parsed_data.get('visual_difficulty', 5.0)
+            
+        try:
+            route_color = self._extract_route_color(analysis_text)
+        except:
+            route_color = parsed_data.get('route_color', 'unbekannt')
+        
+        # Extract enhanced fields with fallbacks
+        try:
+            wall_angle = self._extract_wall_angle(analysis_text)
+        except:
+            wall_angle = parsed_data.get('wall_angle', 'vertical')
+            
+        try:
+            hold_analysis = self._extract_detailed_hold_analysis(analysis_text)
+        except:
+            hold_analysis = {'types': ['jug'], 'sizes': ['medium'], 'description': 'Standard holds'}
+            
+        try:
+            difficulty_indicators = self._extract_difficulty_indicators(analysis_text)
+        except:
+            difficulty_indicators = [f"Difficulty: {visual_difficulty}/10"]
+        
+        return {
+            "timestamp": timestamp,
+            "technique_score": technique_score,
+            "move_count": move_count,
+            "visual_difficulty": visual_difficulty,
+            "route_color": route_color,
+            "wall_angle": wall_angle,
+            "hold_analysis": hold_analysis,
+            "difficulty_indicators": difficulty_indicators,
+            "analysis_text": analysis_text,
+            "holds": [],
+            "insights": ["Legacy format analysis"],
+            "coordinates": [],
+            "movement_quality": parsed_data.get('movement_quality', 'average'),
+            "enhanced_format": False
+        }
     
     def _extract_move_count(self, text: str) -> int:
         """Extract move count from AI analysis text with enhanced patterns"""
