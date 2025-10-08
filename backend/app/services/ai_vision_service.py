@@ -178,6 +178,20 @@ class AIVisionService:
                         temperature=0.3
                     )
                 else:
+                    # Debug image data
+                    image_size = len(base64_image)
+                    image_preview = base64_image[:100] + "..." if len(base64_image) > 100 else base64_image
+                    logger.warning(f"🖼️ IMAGE DEBUG: Size={image_size} chars, Preview={image_preview}")
+                    
+                    # Add explicit prompt to help AI identify if image is received
+                    enhanced_prompt = f"""
+{prompt}
+
+IMPORTANT: Please confirm if you can see and analyze the climbing image. 
+If you cannot see the image, start your response with "I cannot see the climbing image."
+If you can see the image, start your response with "I can analyze this climbing image."
+                    """
+                    
                     # Normal vision analysis
                     response = await self.client.chat.completions.create(
                         model=self.model,
@@ -185,11 +199,12 @@ class AIVisionService:
                             {
                                 "role": "user",
                                 "content": [
-                                    {"type": "text", "text": prompt},
+                                    {"type": "text", "text": enhanced_prompt},
                                     {
                                         "type": "image_url",
                                         "image_url": {
-                                            "url": f"data:image/jpeg;base64,{base64_image}"
+                                            "url": f"data:image/jpeg;base64,{base64_image}",
+                                            "detail": "high"
                                         }
                                     }
                                 ]
