@@ -102,6 +102,13 @@ class AIVisionService:
             
             logger.info(f"Analyzing {len(frames)} frames with GPT-4 Vision (AI ENABLED)")
             
+            # Debug frame data before analysis
+            logger.warning(f"🖼️ FRAME DATA CHECK: {len(frames)} frames received")
+            for i, (base64_img, timestamp) in enumerate(frames[:2]):  # Check first 2 frames
+                img_size = len(base64_img) if base64_img else 0
+                img_type = "valid" if base64_img and len(base64_img) > 1000 else "invalid/small"
+                logger.warning(f"  Frame {i+1}: {img_size} chars, {img_type}, timestamp={timestamp:.2f}s")
+            
             # Analyze frames with GPT-4 Vision
             frame_analyses = await self._analyze_frames(frames, sport_type)
             
@@ -144,7 +151,8 @@ class AIVisionService:
             
         except Exception as e:
             logger.error(f"❌ AI vision analysis completely failed for {analysis_id}: {str(e)}")
-            raise Exception(f"AI analysis failed for {analysis_id}: {str(e)}")
+            # TEMPORARY: No fallback - force real error to surface
+            raise Exception(f"AI analysis failed for {analysis_id}: {str(e)} [FALLBACK DISABLED]")
     
     async def _analyze_frames(
         self, 

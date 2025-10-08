@@ -499,16 +499,9 @@ async def get_analysis_results(analysis_id: str):
             },
             "sport_specific_analysis": {
                 "sport_type": analysis_result.get('sport_type', 'climbing'),
-                "difficulty_grade": route_analysis.get('difficulty_estimated', '4a'),
-                "key_metrics": {
-                    "balance": {"status": "good", "score": 0.7},
-                    "efficiency": {"status": "good", "score": 0.7},
-                    "technique": {"status": "good", "score": 0.7}
-                },
-                "safety_considerations": [
-                    "Achte auf sicheren Griff und gute Fußplatzierung",
-                    "Verwende Sicherungsausrüstung in angemessener Höhe"
-                ],
+                "difficulty_grade": route_analysis.get('difficulty_estimated', 'Unknown'),
+                "key_metrics": route_analysis.get('key_metrics', {}),  # Use AI metrics instead of hardcoded
+                "safety_considerations": route_analysis.get('safety_considerations', []),  # Use AI safety tips
                 "training_recommendations": analysis_result.get('recommendations', [])
             },
             "analysis_summary": {
