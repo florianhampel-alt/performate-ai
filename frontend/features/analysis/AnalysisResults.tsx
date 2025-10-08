@@ -26,6 +26,13 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
       try {
         setLoading(true)
         const results = await getAnalysisResults(analysisId)
+        
+        // Debug logging for AI recommendations
+        console.log('🔍 Analysis results received:')
+        console.log('unified_recommendations:', results.unified_recommendations)
+        console.log('route_analysis.recommendations:', results.route_analysis?.recommendations)
+        console.log('recommendations:', results.recommendations)
+        
         setAnalysis(results)
         
         // Fetch video URL from backend
@@ -253,18 +260,24 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
             <div className="p-4 bg-blue-50 rounded-lg">
               <h4 className="font-medium text-blue-900 mb-2">💡 KI-Coaching-Tipps</h4>
               <ul className="text-sm text-blue-800 space-y-1">
-                {analysis.route_analysis?.recommendations?.map((tip, index) => (
-                  <li key={index}>• {tip}</li>
-                )) || analysis.unified_recommendations?.slice(0, 4).map((tip, index) => (
-                  <li key={index}>• {tip}</li>
-                )) || [
-                  'Übe statische Bewegungen um Energie zu sparen',
-                  'Verbessere Fußplatzierung während schwieriger Züge',
-                  'Plane Bewegungssequenzen vor dem Klettern',
-                  'Stärke den Core für bessere Körperspannung'
-                ].map((tip, index) => (
-                  <li key={index}>• {tip}</li>
-                ))}
+                {/* Priority order: unified_recommendations -> route_analysis.recommendations -> fallback */}
+                {(analysis.unified_recommendations && analysis.unified_recommendations.length > 0) ?
+                  analysis.unified_recommendations.slice(0, 4).map((tip, index) => (
+                    <li key={index}>• {tip}</li>
+                  )) :
+                  (analysis.route_analysis?.recommendations && analysis.route_analysis.recommendations.length > 0) ?
+                    analysis.route_analysis.recommendations.slice(0, 4).map((tip, index) => (
+                      <li key={index}>• {tip}</li>
+                    )) :
+                    [
+                      'Übe statische Bewegungen um Energie zu sparen',
+                      'Verbessere Fußplatzierung während schwieriger Züge',
+                      'Plane Bewegungssequenzen vor dem Klettern',
+                      'Stärke den Core für bessere Körperspannung'
+                    ].map((tip, index) => (
+                      <li key={index}>• {tip}</li>
+                    ))
+                }
               </ul>
             </div>
           </div>
@@ -371,10 +384,11 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
       <Card className="p-8 mb-8">
         <h2 className="text-2xl font-semibold mb-6">Trainingsempfehlungen</h2>
         <div className="grid md:grid-cols-2 gap-4">
+          {/* Use AI recommendations with proper fallback logic */}
           {(
-            analysis.unified_recommendations?.length ? analysis.unified_recommendations : 
-            analysis.route_analysis?.recommendations?.length ? analysis.route_analysis.recommendations :
-            analysis.recommendations || [
+            (analysis.unified_recommendations && analysis.unified_recommendations.length > 0) ? analysis.unified_recommendations :
+            (analysis.route_analysis?.recommendations && analysis.route_analysis.recommendations.length > 0) ? analysis.route_analysis.recommendations :
+            analysis.recommendations && analysis.recommendations.length > 0 ? analysis.recommendations : [
               "Fokussiere dich auf Balance während dynamischer Bewegungen",
               "Trainiere präzise Fußplatzierung auf kleineren Griffen",
               "Verbessere Rumpfkraft für bessere Stabilität",
