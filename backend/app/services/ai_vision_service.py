@@ -20,7 +20,7 @@ class AIVisionService:
     def __init__(self):
         self.client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
         self.model = "gpt-4o"  # GPT-4 Vision model
-        self.max_tokens = 1500  # ENHANCED: More tokens for comprehensive analysis with detailed feedback
+        self.max_tokens = 800  # OPTIMIZED: Balanced tokens for detailed feedback on Render free tier
         # TEMPORARY: Enable AI analysis by default for testing (change back to 'false' later)
         ai_enabled_env = getattr(settings, 'ENABLE_AI_ANALYSIS', 'true')  # Changed default to 'true'
         self.ai_analysis_enabled = ai_enabled_env.lower() in ['true', '1', 'yes', 'on']
