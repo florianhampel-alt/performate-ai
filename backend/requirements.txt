@@ -34,6 +34,8 @@ opencv-python-headless>=4.8.0  # Headless version for server deployment
 Pillow>=10.0.0
 numpy>=1.24.0
 ffmpeg-python>=0.2.0  # For video processing
+imageio>=2.31.0  # Robust video frame extraction
+imageio[ffmpeg]>=2.31.0  # With ffmpeg backend
 
 # Testing
 pytest>=7.4.3

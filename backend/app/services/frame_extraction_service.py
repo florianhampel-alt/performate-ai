@@ -167,6 +167,63 @@ class FrameExtractionService:
         total_frames = 0
         fps = 0
         
+        # TRY IMAGEIO FIRST (more robust than OpenCV)
+        try:
+            logger.warning(f"🔍 TRYING IMAGEIO for video processing (more robust)")
+            import imageio.v3 as iio
+            
+            # Get video properties with imageio
+            props = iio.improps(video_path)
+            fps = props.get('fps', 24.0)
+            total_frames = props.get('count', 0) 
+            video_duration = total_frames / fps if fps > 0 and total_frames > 0 else 0
+            
+            logger.warning(f"🎬 IMAGEIO SUCCESS: {total_frames} frames, {fps:.2f} FPS, {video_duration:.1f}s")
+            
+            # Calculate frame indices to extract
+            frame_indices = self._calculate_frame_indices(total_frames, video_duration)
+            logger.warning(f"🎬 IMAGEIO EXTRACTION: Will extract {len(frame_indices)} frames")
+            
+            # Extract frames using imageio
+            for i, frame_idx in enumerate(frame_indices):
+                try:
+                    # Read specific frame
+                    frame = iio.imread(video_path, index=frame_idx)
+                    timestamp = frame_idx / fps if fps > 0 else 0
+                    
+                    # Convert to PIL Image
+                    pil_image = Image.fromarray(frame)
+                    
+                    # Process frame same as OpenCV method
+                    base64_image = self._process_pil_image(pil_image)
+                    if base64_image:
+                        # Debug image data
+                        img_size = len(base64_image)
+                        img_preview = base64_image[:50] + "..." if len(base64_image) > 50 else base64_image
+                        logger.warning(f"✅ IMAGEIO FRAME EXTRACTED: {len(frames)+1}/{len(frame_indices)} at {timestamp:.2f}s (frame {frame_idx}/{total_frames})")
+                        logger.warning(f"   🖼️ Image size: {img_size} chars, Preview: {img_preview}")
+                        frames.append((base64_image, timestamp))
+                    else:
+                        logger.error(f"❌ IMAGEIO FRAME PROCESSING FAILED at {timestamp:.2f}s (frame {frame_idx})")
+                        
+                except Exception as frame_err:
+                    logger.error(f"Imageio frame {i} extraction failed: {frame_err}")
+                    continue
+            
+            return {
+                'frames': frames,
+                'video_duration': video_duration,
+                'total_frames': total_frames,
+                'fps': fps,
+                'success': len(frames) > 0,
+                'extraction_method': 'imageio'
+            }
+            
+        except Exception as imageio_err:
+            logger.error(f"Imageio extraction failed: {imageio_err}")
+            logger.warning(f"🔄 IMAGEIO FAILED - Trying OpenCV fallback")
+            
+        # FALLBACK TO OPENCV
         try:
             # Debug OpenCV version and capabilities
             logger.warning(f"🔍 OPENCV DEBUG: Version {cv2.__version__}")
@@ -183,7 +240,7 @@ class FrameExtractionService:
                     'total_frames': 0,
                     'fps': 0,
                     'success': False,
-                    'error': 'Could not open video with OpenCV - check codec support'
+                    'error': 'Both imageio and OpenCV failed to open video'
                 }
             
             # Get video properties
@@ -329,6 +386,56 @@ class FrameExtractionService:
             
         except Exception as e:
             logger.error(f"Frame processing error: {str(e)}")
+            return None
+    
+    def _process_pil_image(self, pil_image: Image.Image) -> Optional[str]:
+        """Process PIL Image and convert to base64 (for imageio compatibility)"""
+        try:
+            # Resize image for consistent analysis
+            original_width, original_height = pil_image.size
+            target_width, target_height = self.frame_size
+            
+            # Calculate aspect ratio preserving resize
+            aspect = original_width / original_height
+            if aspect > (target_width / target_height):
+                # Image is wider - fit by width
+                new_width = target_width
+                new_height = int(target_width / aspect)
+            else:
+                # Image is taller - fit by height
+                new_height = target_height
+                new_width = int(target_height * aspect)
+            
+            # Resize image
+            resized_image = pil_image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+            
+            # Convert to base64
+            buffer = BytesIO()
+            resized_image.save(buffer, format='JPEG', quality=90)
+            image_bytes = buffer.getvalue()
+            
+            # Debug buffer content
+            logger.warning(f"🖼️ PIL BUFFER DEBUG: {len(image_bytes)} bytes before base64 encoding")
+            
+            image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+            
+            # Validate base64
+            if len(image_base64) < 1000:  # Very small images indicate problems
+                logger.error(f"❌ PIL BASE64 IMAGE TOO SMALL: {len(image_base64)} chars")
+                return None
+                
+            # Test base64 validity
+            try:
+                decoded_test = base64.b64decode(image_base64[:100])  # Test first 100 chars
+                logger.warning(f"✅ PIL BASE64 VALIDATION: OK, {len(image_base64)} chars total")
+            except Exception as b64_err:
+                logger.error(f"❌ PIL BASE64 INVALID: {b64_err}")
+                return None
+            
+            return image_base64
+            
+        except Exception as e:
+            logger.error(f"PIL image processing error: {str(e)}")
             return None
     
     def get_frame_analysis_prompt(self, sport_type: str = "climbing") -> str:
