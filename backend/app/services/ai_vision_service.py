@@ -211,8 +211,17 @@ class AIVisionService:
                 if response.choices and response.choices[0].message.content:
                     analysis_text = response.choices[0].message.content
                     
+                    # DEBUG: Log raw AI response for troubleshooting
+                    logger.warning(f"🤖 RAW AI RESPONSE (Frame {i+1}): {analysis_text[:300]}...")
+                    logger.warning(f"📏 AI Response Length: {len(analysis_text)} chars")
+                    
                     # Parse the analysis into structured data
                     parsed_analysis = self._parse_frame_analysis(analysis_text, timestamp)
+                    
+                    # DEBUG: Log parsing result
+                    logger.warning(f"🔍 PARSED RESULT: enhanced_format={parsed_analysis.get('enhanced_format', False)}")
+                    logger.warning(f"📊 PARSED KEYS: {list(parsed_analysis.keys())[:10]}")
+                    
                     frame_analyses.append(parsed_analysis)
                     
                     logger.info(f"Frame {i+1} analysis: {parsed_analysis.get('technique_score', 'N/A')}/10")
@@ -229,15 +238,22 @@ class AIVisionService:
         logger.info(f"🔍 PARSING ENHANCED AI RESPONSE: {len(analysis_text)} chars")
         
         try:
+            # DEBUG: Check if this looks like enhanced format
+            has_enhanced_markers = any(marker in analysis_text for marker in [
+                '## Routenidentifikation', '## Positive Aspekte', '## Konkrete Tipps', 
+                '**Farbe:**', '**Level:**', '✅', '💡'
+            ])
+            logger.warning(f"🔎 PARSING CHECK: Enhanced markers found: {has_enhanced_markers}")
+            
             # Try to parse the new enhanced format first
             enhanced_data = self._parse_enhanced_format(analysis_text)
             if enhanced_data:
                 enhanced_data['timestamp'] = timestamp
-                logger.info(f"✅ Enhanced parsing successful: level={enhanced_data.get('climber_level', 'unknown')}")
+                logger.warning(f"✅ ENHANCED PARSING SUCCESS: level={enhanced_data.get('climber_level', 'unknown')}, aspects={len(enhanced_data.get('positive_aspects', []))}")
                 return enhanced_data
             
             # Fallback to legacy format parsing
-            logger.warning("🔄 Falling back to legacy parsing")
+            logger.warning("❌ ENHANCED PARSING FAILED - Falling back to legacy parsing")
             return self._parse_legacy_format(analysis_text, timestamp)
             
         except Exception as e:

@@ -25,33 +25,100 @@ app = FastAPI(
     version="1.2.0"
 )
 
-# CORS middleware - Production-hardened configuration
-allowed_origins = [
+# CORS middleware - Smart pattern matching for Vercel deployments
+base_allowed_origins = [
     "http://localhost:3000",    # Local development
     "http://127.0.0.1:3000",    # Local development  
-    "https://performate-ai.vercel.app",
-    "https://www.performate-ai.com",
-    "https://frontend-khx7r2ks6-flos-projects-6a1ae6b3.vercel.app",  # Old deployment
-    "https://performate-4te8mge8h-flos-projects-6a1ae6b3.vercel.app",  # Previous deployment
-    "https://frontend-7ew57yoop-flos-projects-6a1ae6b3.vercel.app"    # Current deployment
-] if settings.DEBUG else [
-    "https://performate-ai.vercel.app",
-    "https://www.performate-ai.com",
-    "https://frontend-khx7r2ks6-flos-projects-6a1ae6b3.vercel.app",  # Old deployment
-    "https://performate-4te8mge8h-flos-projects-6a1ae6b3.vercel.app",  # Previous deployment
-    "https://frontend-7ew57yoop-flos-projects-6a1ae6b3.vercel.app"    # Current deployment
-    # Remove wildcard for production security
+    "https://performate-ai.vercel.app",  # Main production URL
+    "https://www.performate-ai.com",     # Custom domain (future)
 ]
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=allowed_origins,
-    allow_credentials=False,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
-    expose_headers=["*"],
-    max_age=86400
-)
+# Smart CORS origin checker function
+def is_allowed_origin(origin: str) -> bool:
+    """Check if origin is allowed using pattern matching"""
+    if not origin:
+        return False
+    
+    # Check base allowed origins
+    if origin in base_allowed_origins:
+        return True
+    
+    # Pattern match for Vercel preview URLs
+    import re
+    vercel_patterns = [
+        r'^https://performate-[a-z0-9]+-flos-projects-[a-z0-9]+\.vercel\.app$',  # New pattern
+        r'^https://frontend-[a-z0-9]+-flos-projects-[a-z0-9]+\.vercel\.app$',   # Legacy pattern  
+        r'^https://performate-ai-[a-z0-9]+\.vercel\.app$',                       # Alternative pattern
+    ]
+    
+    for pattern in vercel_patterns:
+        if re.match(pattern, origin):
+            logger.info(f"✅ CORS: Allowed Vercel preview URL: {origin}")
+            return True
+    
+    logger.warning(f"❌ CORS: Blocked origin: {origin}")
+    return False
+
+# Get all allowed origins (for middleware compatibility)
+allowed_origins = "*" if settings.DEBUG else base_allowed_origins
+
+# Custom CORS middleware with pattern matching support
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response as StarletteResponse
+
+class SmartCORSMiddleware(BaseHTTPMiddleware):
+    def __init__(self, app, allow_credentials: bool = False):
+        super().__init__(app)
+        self.allow_credentials = allow_credentials
+    
+    async def dispatch(self, request: Request, call_next):
+        origin = request.headers.get('origin')
+        
+        # Handle preflight requests
+        if request.method == 'OPTIONS':
+            if origin and is_allowed_origin(origin):
+                return StarletteResponse(
+                    status_code=200,
+                    headers={
+                        'Access-Control-Allow-Origin': origin,
+                        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+                        'Access-Control-Allow-Headers': '*',
+                        'Access-Control-Max-Age': '86400',
+                        'Access-Control-Allow-Credentials': 'true' if self.allow_credentials else 'false',
+                    }
+                )
+            else:
+                return StarletteResponse(status_code=403)
+        
+        # Process the request
+        response = await call_next(request)
+        
+        # Add CORS headers to response
+        if origin and is_allowed_origin(origin):
+            response.headers['Access-Control-Allow-Origin'] = origin
+            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+            response.headers['Access-Control-Allow-Headers'] = '*'
+            response.headers['Access-Control-Expose-Headers'] = '*'
+            response.headers['Access-Control-Allow-Credentials'] = 'true' if self.allow_credentials else 'false'
+        
+        return response
+
+# Add the smart CORS middleware
+if settings.DEBUG:
+    # Development: Allow all origins
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["*"],
+        expose_headers=["*"],
+        max_age=86400
+    )
+else:
+    # Production: Smart pattern matching
+    app.add_middleware(SmartCORSMiddleware, allow_credentials=False)
 
 # Include routers
 if settings.DEBUG:
