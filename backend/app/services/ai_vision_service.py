@@ -121,13 +121,8 @@ class AIVisionService:
                 frame_analyses, frames, sport_type, analysis_id, video_duration
             )
             
-            # Check if we need to enhance with overlays (AI didn't provide route points)
-            needs_overlay_enhancement = not overall_analysis.get("route_analysis", {}).get("ideal_route")
-            if needs_overlay_enhancement:
-                logger.info(f"🎨 Enhancing AI analysis with overlay data (AI provided no route points)")
-                overall_analysis = self._enhance_analysis_with_guaranteed_overlays(overall_analysis, analysis_id, sport_type, video_duration, frames)
-            else:
-                logger.info(f"🗺️ Using pure AI analysis - AI provided {len(overall_analysis.get('route_analysis', {}).get('ideal_route', []))} route points")
+            # NO FALLBACK ENHANCEMENT - Use only what AI provides
+            logger.info(f"🗺️ Using PURE AI analysis only - AI provided {len(overall_analysis.get('route_analysis', {}).get('ideal_route', []))} route points")
             
             # Generate overlay data from analysis with real video duration
             overlay_data = self._generate_overlay_from_analysis(overall_analysis, frames, video_duration)
@@ -150,9 +145,8 @@ class AIVisionService:
             return result
             
         except Exception as e:
-            logger.error(f"❌ AI vision analysis completely failed for {analysis_id}: {str(e)}")
-            # TEMPORARY: No fallback - force real error to surface
-            raise Exception(f"AI analysis failed for {analysis_id}: {str(e)} [FALLBACK DISABLED]")
+            logger.error(f"❌ AI vision analysis FAILED for {analysis_id}: {str(e)}")
+            raise Exception(f"AI analysis failed - NO FALLBACKS: {str(e)}")
     
     async def _analyze_frames(
         self, 
@@ -170,22 +164,12 @@ class AIVisionService:
                 
                 logger.info(f"💰 CALLING GPT-4 Vision API - Max tokens: {self.max_tokens}")
                 
-                # Check if we have a real frame or dummy frame
-                if base64_image == "dummy_base64_frame":
-                    # Text-only analysis for debugging when frame extraction fails
-                    logger.warning(f"🗺️ Using text-only AI analysis (no image) for debugging")
-                    response = await self.client.chat.completions.create(
-                        model="gpt-4",  # Use regular GPT-4 for text-only
-                        messages=[
-                            {
-                                "role": "user",
-                                "content": f"Analyze a climbing video frame. {prompt} Note: Actual frame not available - provide general climbing analysis."
-                            }
-                        ],
-                        max_tokens=self.max_tokens,
-                        temperature=0.3
-                    )
-                else:
+                # ONLY PROCESS REAL IMAGES - NO DUMMIES
+                if not base64_image or len(base64_image) < 1000:
+                    logger.error(f"❌ INVALID/EMPTY IMAGE DATA at frame {i+1}")
+                    raise Exception(f"Frame {i+1} has invalid image data - cannot proceed without real images")
+                    
+                # Process only valid images:
                     # Debug image data
                     image_size = len(base64_image)
                     image_preview = base64_image[:100] + "..." if len(base64_image) > 100 else base64_image
@@ -275,16 +259,15 @@ If you can see the image, start your response with "I can analyze this climbing 
             ])
             logger.warning(f"🔎 PARSING CHECK: Enhanced markers found: {has_enhanced_markers}")
             
-            # Try to parse the new enhanced format first
+            # ONLY Enhanced Format - NO FALLBACKS
             enhanced_data = self._parse_enhanced_format(analysis_text)
-            if enhanced_data:
-                enhanced_data['timestamp'] = timestamp
-                logger.warning(f"✅ ENHANCED PARSING SUCCESS: level={enhanced_data.get('climber_level', 'unknown')}, aspects={len(enhanced_data.get('positive_aspects', []))}")
-                return enhanced_data
-            
-            # Fallback to legacy format parsing
-            logger.warning("❌ ENHANCED PARSING FAILED - Falling back to legacy parsing")
-            return self._parse_legacy_format(analysis_text, timestamp)
+            if not enhanced_data:
+                logger.error(f"❌ ENHANCED PARSING COMPLETELY FAILED for: {analysis_text[:200]}...")
+                raise Exception(f"Enhanced parsing failed - cannot process non-enhanced AI response")
+                
+            enhanced_data['timestamp'] = timestamp
+            logger.warning(f"✅ ENHANCED PARSING SUCCESS: level={enhanced_data.get('climber_level', 'unknown')}, aspects={len(enhanced_data.get('positive_aspects', []))}")
+            return enhanced_data
             
         except Exception as e:
             logger.error(f"Failed to parse enhanced frame analysis: {str(e)}")

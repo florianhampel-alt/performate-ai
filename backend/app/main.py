@@ -475,7 +475,7 @@ async def get_analysis_results(analysis_id: str):
             "id": analysis_id,
             "sport_type": analysis_result.get('sport_type', 'climbing'),
             "analyzer_type": "ai_vision_analysis",
-            "overall_performance_score": analysis_result.get('performance_score', 70) / 100,
+            "overall_performance_score": analysis_result.get('performance_score', 0) / 100,
             "video_url": f"/videos/{analysis_id}",
             "comprehensive_insights": [
                 {
@@ -493,7 +493,7 @@ async def get_analysis_results(analysis_id: str):
                 "total_moves": route_analysis.get('total_moves', 0),
                 "ideal_route": route_analysis.get('ideal_route', []),
                 "performance_segments": route_analysis.get('performance_segments', []),
-                "overall_score": route_analysis.get('overall_score', 70),
+                "overall_score": route_analysis.get('overall_score', 0),
                 "key_insights": route_analysis.get('key_insights', []),
                 "recommendations": route_analysis.get('recommendations', [])
             },
@@ -508,7 +508,7 @@ async def get_analysis_results(analysis_id: str):
                 "analyzers_used": 1,
                 "total_insights": len(route_analysis.get('key_insights', [])),
                 "recommendations_count": len(analysis_result.get('recommendations', [])),
-                "overall_score": analysis_result.get('performance_score', 70)
+                "overall_score": analysis_result.get('performance_score', 0)
             },
             "metadata": {
                 "analysis_type": "ai_vision_climbing_analysis",

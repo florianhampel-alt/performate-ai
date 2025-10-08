@@ -56,6 +56,13 @@ class FrameExtractionService:
                     'error': 'Could not get video file'
                 }
             
+            # Debug video file before extraction
+            if os.path.exists(temp_video_path):
+                file_size = os.path.getsize(temp_video_path)
+                logger.warning(f"🎬 VIDEO FILE DEBUG: {temp_video_path}, Size: {file_size/(1024*1024):.2f}MB")
+            else:
+                logger.error(f"❌ VIDEO FILE NOT FOUND: {temp_video_path}")
+                
             # Extract frames using OpenCV
             extraction_result = self._extract_frames_opencv(temp_video_path)
             
@@ -161,17 +168,22 @@ class FrameExtractionService:
         fps = 0
         
         try:
+            # Debug OpenCV version and capabilities
+            logger.warning(f"🔍 OPENCV DEBUG: Version {cv2.__version__}")
+            logger.warning(f"🔍 VIDEO CODECS: {cv2.getBuildInformation().split('Video I/O')[1][:500] if 'Video I/O' in cv2.getBuildInformation() else 'Info not available'}")
+            
             # Open video
             cap = cv2.VideoCapture(video_path)
             if not cap.isOpened():
                 logger.error(f"Could not open video: {video_path}")
+                logger.error(f"🔍 OPENCV BACKENDS: {[cv2.videoio_registry.getBackendName(b) for b in cv2.videoio_registry.getBackends()]}")
                 return {
                     'frames': frames,
                     'video_duration': 0,
                     'total_frames': 0,
                     'fps': 0,
                     'success': False,
-                    'error': 'Could not open video with OpenCV'
+                    'error': 'Could not open video with OpenCV - check codec support'
                 }
             
             # Get video properties
@@ -197,13 +209,20 @@ class FrameExtractionService:
                     # Process and encode frame
                     base64_image = self._process_frame(frame)
                     if base64_image:
+                        # Debug image data
+                        img_size = len(base64_image)
+                        img_preview = base64_image[:50] + "..." if len(base64_image) > 50 else base64_image
+                        logger.warning(f"✅ FRAME EXTRACTED: {len(frames)+1}/{len(frame_indices)} at {timestamp:.2f}s (frame {frame_idx}/{total_frames})")
+                        logger.warning(f"   🖼️ Image size: {img_size} chars, Preview: {img_preview}")
                         frames.append((base64_image, timestamp))
-                        logger.warning(f"✅ FRAME EXTRACTED: {len(frames)}/{len(frame_indices)} at {timestamp:.2f}s (frame {frame_idx}/{total_frames})")
+                    else:
+                        logger.error(f"❌ FRAME PROCESSING FAILED at {timestamp:.2f}s (frame {frame_idx})")
                 
             cap.release()
             
         except Exception as e:
             logger.error(f"OpenCV frame extraction error: {str(e)}")
+            logger.error(f"📊 OPENCV TRACEBACK: {str(e)}")
             return {
                 'frames': frames,
                 'video_duration': video_duration,
@@ -286,7 +305,25 @@ class FrameExtractionService:
             # Convert to base64
             buffer = BytesIO()
             pil_image.save(buffer, format='JPEG', quality=90)
-            image_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+            image_bytes = buffer.getvalue()
+            
+            # Debug buffer content
+            logger.warning(f"🖼️ BUFFER DEBUG: {len(image_bytes)} bytes before base64 encoding")
+            
+            image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+            
+            # Validate base64
+            if len(image_base64) < 1000:  # Very small images indicate problems
+                logger.error(f"❌ BASE64 IMAGE TOO SMALL: {len(image_base64)} chars")
+                return None
+                
+            # Test base64 validity
+            try:
+                decoded_test = base64.b64decode(image_base64[:100])  # Test first 100 chars
+                logger.warning(f"✅ BASE64 VALIDATION: OK, {len(image_base64)} chars total")
+            except Exception as b64_err:
+                logger.error(f"❌ BASE64 INVALID: {b64_err}")
+                return None
             
             return image_base64
             

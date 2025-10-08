@@ -58,8 +58,8 @@ class RouteAnalysisService:
             Route analysis with color and difficulty separated
         """
         if not frame_analyses:
-            logger.warning("No frame analyses provided for route analysis")
-            return self._create_fallback_route_analysis()
+            logger.error("No frame analyses provided for route analysis")
+            raise ValueError("Route analysis requires frame analyses - NO FALLBACKS")
         
         logger.info(f"🧗 Analyzing route from {len(frame_analyses)} frames over {video_duration:.1f}s")
         
@@ -90,7 +90,7 @@ class RouteAnalysisService:
             "wall_angle": self._determine_wall_angle(frame_analyses),
             "hold_characteristics": difficulty_assessment["hold_summary"],
             "performance_segments": performance_segments,
-            "overall_score": int(statistics.mean([fa.get('technique_score', 70) for fa in frame_analyses])),
+            "overall_score": int(statistics.mean([fa.get('technique_score', 0) for fa in frame_analyses if fa.get('technique_score', 0) > 0])) if any(fa.get('technique_score', 0) > 0 for fa in frame_analyses) else 0,
             "key_insights": key_insights,
             "recommendations": recommendations,
             "analysis_method": "hold_based_difficulty_assessment"
