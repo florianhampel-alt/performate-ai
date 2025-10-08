@@ -144,6 +144,28 @@ async def root():
 async def health_check():
     return {"status": "healthy", "cache_stats": video_cache.get_stats()}
 
+@app.get("/debug/last-ai-responses")
+async def get_last_ai_responses():
+    """Debug endpoint to see last AI responses and parsing results"""
+    logger.info("🔍 Debug endpoint called - fetching last AI responses")
+    try:
+        from app.debug_ai_response import get_last_ai_responses
+        responses = get_last_ai_responses()
+        
+        logger.info(f"📊 Found {len(responses)} stored AI responses")
+        
+        if not responses:
+            return {"message": "No AI responses captured yet. Upload a video first."}
+        
+        return {
+            "total_responses": len(responses),
+            "responses": responses,
+            "latest_response": responses[-1] if responses else None
+        }
+    except Exception as e:
+        logger.error(f"❌ Debug endpoint failed: {str(e)}")
+        return {"error": f"Debug endpoint failed: {str(e)}"}
+
 @app.options("/upload")
 async def upload_options():
     """Handle CORS preflight for upload endpoint"""

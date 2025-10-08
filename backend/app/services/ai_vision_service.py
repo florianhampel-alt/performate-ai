@@ -218,6 +218,13 @@ class AIVisionService:
                     # Parse the analysis into structured data
                     parsed_analysis = self._parse_frame_analysis(analysis_text, timestamp)
                     
+                    # DEBUG: Store for debugging endpoint
+                    try:
+                        from app.debug_ai_response import store_ai_response
+                        store_ai_response(i+1, analysis_text, parsed_analysis)
+                    except Exception as debug_err:
+                        logger.warning(f"⚠️ Debug storage failed: {debug_err}")
+                    
                     # DEBUG: Log parsing result
                     logger.warning(f"🔍 PARSED RESULT: enhanced_format={parsed_analysis.get('enhanced_format', False)}")
                     logger.warning(f"📊 PARSED KEYS: {list(parsed_analysis.keys())[:10]}")
