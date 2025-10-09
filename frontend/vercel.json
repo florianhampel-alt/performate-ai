@@ -2,11 +2,11 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://performate-ai-backend.onrender.com/$1"
+      "destination": "https://performate-ai.onrender.com/$1"
     }
   ],
   "env": {
-    "NEXT_PUBLIC_API_URL": "https://performate-ai.onrender.com"
+    "NEXT_PUBLIC_API_URL": "https://performate-ai.onrender.com",
     "NEXT_PUBLIC_APP_NAME": "Performate AI"
   }
 }
