@@ -184,86 +184,49 @@ class FrameExtractionService:
         total_frames = 0
         fps = 0
         
-        # TRY IMAGEIO FIRST (more robust than OpenCV)
-        try:
-            logger.warning(f"🔍 TRYING IMAGEIO for video processing (more robust)")
-            
-            # Check imageio availability
-            if not IMAGEIO_AVAILABLE:
-                logger.error(f"❌ IMAGEIO NOT AVAILABLE - was not imported successfully")
-                raise Exception(f"Imageio not installed - this should have been installed in build step")
-            
-            logger.warning(f"✅ IMAGEIO AVAILABLE: {imageio.__version__ if hasattr(imageio, '__version__') else 'version unknown'}")
-            
-            # Get video properties with imageio
-            props = iio.improps(video_path)
-            fps = props.get('fps', 24.0)
-            total_frames = props.get('count', 0) 
-            video_duration = total_frames / fps if fps > 0 and total_frames > 0 else 0
-            
-            logger.warning(f"🎬 IMAGEIO SUCCESS: {total_frames} frames, {fps:.2f} FPS, {video_duration:.1f}s")
-            
-            # Calculate frame indices to extract
-            frame_indices = self._calculate_frame_indices(total_frames, video_duration)
-            logger.warning(f"🎬 IMAGEIO EXTRACTION: Will extract {len(frame_indices)} frames")
-            
-            # Extract frames using imageio
-            for i, frame_idx in enumerate(frame_indices):
-                try:
-                    # Read specific frame
-                    frame = iio.imread(video_path, index=frame_idx)
-                    timestamp = frame_idx / fps if fps > 0 else 0
-                    
-                    # Convert to PIL Image
-                    pil_image = Image.fromarray(frame)
-                    
-                    # Process frame same as OpenCV method
-                    base64_image = self._process_pil_image(pil_image)
-                    if base64_image:
-                        # Debug image data
-                        img_size = len(base64_image)
-                        img_preview = base64_image[:50] + "..." if len(base64_image) > 50 else base64_image
-                        logger.warning(f"✅ IMAGEIO FRAME EXTRACTED: {len(frames)+1}/{len(frame_indices)} at {timestamp:.2f}s (frame {frame_idx}/{total_frames})")
-                        logger.warning(f"   🖼️ Image size: {img_size} chars, Preview: {img_preview}")
-                        frames.append((base64_image, timestamp))
-                    else:
-                        logger.error(f"❌ IMAGEIO FRAME PROCESSING FAILED at {timestamp:.2f}s (frame {frame_idx})")
-                        
-                except Exception as frame_err:
-                    logger.error(f"Imageio frame {i} extraction failed: {frame_err}")
-                    continue
-            
-            return {
-                'frames': frames,
-                'video_duration': video_duration,
-                'total_frames': total_frames,
-                'fps': fps,
-                'success': len(frames) > 0,
-                'extraction_method': 'imageio'
-            }
-            
-        except Exception as imageio_err:
-            logger.error(f"Imageio extraction failed: {imageio_err}")
-            logger.warning(f"🔄 IMAGEIO FAILED - Trying OpenCV fallback")
-            
-        # FALLBACK TO OPENCV
+        # USE ONLY OPENCV - SIMPLIFIED AND ROBUST
+        logger.warning(f"🔍 USING ONLY OPENCV - Simplified approach")
         try:
             # Debug OpenCV version and capabilities
             logger.warning(f"🔍 OPENCV DEBUG: Version {cv2.__version__}")
             logger.warning(f"🔍 VIDEO CODECS: {cv2.getBuildInformation().split('Video I/O')[1][:500] if 'Video I/O' in cv2.getBuildInformation() else 'Info not available'}")
             
-            # Open video
-            cap = cv2.VideoCapture(video_path)
-            if not cap.isOpened():
-                logger.error(f"Could not open video: {video_path}")
-                logger.error(f"🔍 OPENCV BACKENDS: {[cv2.videoio_registry.getBackendName(b) for b in cv2.videoio_registry.getBackends()]}")
+            # Try different OpenCV backends for maximum compatibility
+            backends_to_try = [
+                cv2.CAP_FFMPEG,  # Most common
+                cv2.CAP_ANY,     # Let OpenCV choose
+                cv2.CAP_V4L2,    # Linux video
+                cv2.CAP_GSTREAMER  # GStreamer if available
+            ]
+            
+            cap = None
+            successful_backend = None
+            
+            for backend in backends_to_try:
+                try:
+                    logger.warning(f"🔍 Trying OpenCV backend: {backend}")
+                    cap = cv2.VideoCapture(video_path, backend)
+                    if cap.isOpened():
+                        successful_backend = backend
+                        logger.warning(f"✅ OpenCV backend {backend} SUCCESS")
+                        break
+                    else:
+                        cap.release()
+                except Exception as backend_err:
+                    logger.warning(f"❌ Backend {backend} failed: {backend_err}")
+                    if cap:
+                        cap.release()
+            
+            if not cap or not cap.isOpened():
+                logger.error(f"Could not open video with ANY OpenCV backend: {video_path}")
+                logger.error(f"🔍 Available backends: {[cv2.videoio_registry.getBackendName(b) for b in cv2.videoio_registry.getBackends()]}")
                 return {
                     'frames': frames,
                     'video_duration': 0,
                     'total_frames': 0,
                     'fps': 0,
                     'success': False,
-                    'error': 'Both imageio and OpenCV failed to open video'
+                    'error': f'OpenCV failed with all backends for {video_path}'
                 }
             
             # Get video properties
