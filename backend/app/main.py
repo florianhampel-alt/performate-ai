@@ -9,10 +9,33 @@ from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from app.config.base import settings
-from app.services.redis_service import redis_service
-from app.services.s3_service import s3_service
-from app.services.video_cache_service import video_cache
 from app.utils.logger import get_logger
+
+# Initialize logger first
+logger = get_logger(__name__)
+logger.info("🚀 Starting Performate AI API initialization...")
+
+# Initialize services with error handling
+try:
+    from app.services.redis_service import redis_service
+    logger.info("✅ Redis service initialized")
+except Exception as e:
+    logger.warning(f"⚠️ Redis service failed to initialize: {e}")
+    redis_service = None
+
+try:
+    from app.services.s3_service import s3_service
+    logger.info("✅ S3 service initialized")
+except Exception as e:
+    logger.warning(f"⚠️ S3 service failed to initialize: {e}")
+    s3_service = None
+
+try:
+    from app.services.video_cache_service import video_cache
+    logger.info("✅ Video cache service initialized")
+except Exception as e:
+    logger.warning(f"⚠️ Video cache service failed to initialize: {e}")
+    video_cache = None
 
 # Upload tracking for monitoring
 last_upload_info = {"count": 0, "last_time": None, "last_id": None}
@@ -142,7 +165,16 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "cache_stats": video_cache.get_stats()}
+    cache_stats = video_cache.get_stats() if video_cache else {"status": "unavailable"}
+    return {
+        "status": "healthy", 
+        "cache_stats": cache_stats,
+        "services": {
+            "redis": "available" if redis_service else "unavailable",
+            "s3": "available" if s3_service else "unavailable",
+            "video_cache": "available" if video_cache else "unavailable"
+        }
+    }
 
 @app.get("/debug/last-ai-responses")
 async def get_last_ai_responses():
@@ -175,13 +207,18 @@ async def upload_options():
 async def serve_video(video_id: str):
     """Serve video file from S3 or cache"""
     try:
+        # Check service availability
+        if not video_cache:
+            raise HTTPException(status_code=503, detail="Video cache service unavailable")
+        
         # Check if video exists in cache
         video_info = video_cache.get(video_id)
         
         if not video_info:
-            # Try Redis cache for video data
-            try:
-                cached_video = await redis_service.get_json(f"video:{video_id}")
+            # Try Redis cache for video data (if available)
+            if redis_service:
+                try:
+                    cached_video = await redis_service.get_json(f"video:{video_id}")
                 if cached_video and 'video_data' in cached_video:
                     import base64
                     video_content = base64.b64decode(cached_video['video_data'])
@@ -206,12 +243,18 @@ async def serve_video(video_id: str):
                         raise HTTPException(status_code=404, detail="Video not found")
             except HTTPException:
                 raise
-            except Exception as cache_err:
-                logger.warning(f"Redis cache retrieval failed: {cache_err}")
+                except Exception as cache_err:
+                    logger.warning(f"Redis cache retrieval failed: {cache_err}")
+                    raise HTTPException(status_code=404, detail="Video not found")
+            else:
+                logger.info(f"Redis service unavailable, cannot retrieve video {video_id} from cache")
                 raise HTTPException(status_code=404, detail="Video not found")
         
         # Handle S3 stored videos
         if video_info.get('storage_type') == 's3' and 's3_key' in video_info:
+            if not s3_service:
+                raise HTTPException(status_code=503, detail="S3 service unavailable")
+            
             logger.info(f"Serving S3 video {video_id} with key: {video_info['s3_key']}")
             
             # Generate presigned URL for S3 video
@@ -258,6 +301,11 @@ async def serve_video(video_id: str):
 async def init_upload(request: dict):
     """Initialize upload and return presigned S3 URL for direct client upload"""
     try:
+        # Check service availability
+        if not s3_service:
+            raise HTTPException(status_code=503, detail="S3 service unavailable")
+        if not video_cache:
+            raise HTTPException(status_code=503, detail="Video cache service unavailable")
         # Extract request data
         filename = request.get('filename', 'video.mp4')
         content_type = request.get('content_type', 'video/mp4')
