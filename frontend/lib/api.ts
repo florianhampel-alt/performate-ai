@@ -166,11 +166,11 @@ export async function uploadVideo(
 ): Promise<UploadResponse> {
   console.log(`Uploading to: ${API_BASE_URL}/upload`)
   console.log('File:', file.name, file.size, 'bytes, Type:', file.type)
-  console.log('Sport type:', sportType)
+  console.log('Sport type (will be auto-detected):', sportType)
   
   const formData = new FormData()
   formData.append('file', file)
-  formData.append('sport_type', sportType)
+  // Note: sport_type is auto-detected by backend from filename
 
   // Realistic timeout for actual internet speeds
   const controller = new AbortController()

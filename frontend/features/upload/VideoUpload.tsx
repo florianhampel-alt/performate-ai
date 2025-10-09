@@ -69,21 +69,13 @@ export default function VideoUpload() {
       setUploadProgress(100)
       setUploadStatus('uploaded')
       
-      // Start analysis
-      setUploadStatus('analyzing')
-      console.log('Starting analysis with fileId:', uploadResult.fileId || uploadResult.analysis_id)
-      
-      // The backend returns analysis_id directly in upload response
+      // Backend returns analysis_id directly after processing
       if (uploadResult.analysis_id) {
+        console.log('Analysis completed with ID:', uploadResult.analysis_id)
         setAnalysisId(uploadResult.analysis_id)
         setUploadStatus('completed')
-      } else if (uploadResult.fileId) {
-        // Fallback: try startAnalysis if no analysis_id in upload response
-        const analysisResult = await startAnalysis(uploadResult.fileId, selectedSport)
-        setAnalysisId(analysisResult.analysisId)
-        setUploadStatus('completed')
       } else {
-        throw new Error('No analysis_id or fileId received from upload')
+        throw new Error('No analysis_id received from upload - backend processing failed')
       }
 
     } catch (err) {
