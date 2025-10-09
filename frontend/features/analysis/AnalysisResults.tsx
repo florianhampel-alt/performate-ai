@@ -7,7 +7,8 @@ import { Progress } from '@/components/ui/progress'
 import { Alert } from '@/components/ui/alert'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import VideoOverlay from '@/components/VideoOverlay'
-import { getAnalysisResults } from '@/lib/api'
+import ErrorDisplay from '@/components/ErrorDisplay'
+import { getAnalysisResults, ApiError } from '@/lib/api'
 import type { AnalysisResult } from '@/lib/types'
 import { translateMetricStatus, translateMetricName, getMetricStatusColor } from '@/lib/utils/metrics'
 
@@ -18,7 +19,7 @@ interface AnalysisResultsProps {
 export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<Error | ApiError | null>(null)
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
 
   useEffect(() => {
@@ -74,7 +75,14 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
           console.warn('⚠️ No video_url found in analysis results')
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load analysis')
+        console.error('❌ Analysis fetch failed:', err)
+        
+        // Preserve the original error object for better error handling
+        if (err instanceof ApiError || err instanceof Error) {
+          setError(err)
+        } else {
+          setError(new Error(typeof err === 'string' ? err : 'Failed to load analysis'))
+        }
       } finally {
         setLoading(false)
       }
@@ -95,12 +103,56 @@ export default function AnalysisResults({ analysisId }: AnalysisResultsProps) {
   }
 
   if (error) {
+    const handleRetry = () => {
+      setError(null)
+      setLoading(true)
+      // Re-run the fetch logic
+      const fetchResults = async () => {
+        try {
+          setLoading(true)
+          const results = await getAnalysisResults(analysisId)
+          setAnalysis(results)
+          
+          // Video URL handling (same as above)
+          if (results.video_url) {
+            try {
+              const videoEndpoint = `https://performate-ai.onrender.com${results.video_url}`
+              const videoResponse = await fetch(videoEndpoint)
+              
+              if (videoResponse.ok) {
+                const videoData = await videoResponse.json()
+                if (videoData.video_url) {
+                  setVideoUrl(videoData.video_url)
+                }
+              } else {
+                setVideoUrl(`https://performate-ai.onrender.com${results.video_url}`)
+              }
+            } catch (videoErr) {
+              setVideoUrl(`https://performate-ai.onrender.com${results.video_url}`)
+            }
+          }
+        } catch (err) {
+          if (err instanceof ApiError || err instanceof Error) {
+            setError(err)
+          } else {
+            setError(new Error('Failed to load analysis'))
+          }
+        } finally {
+          setLoading(false)
+        }
+      }
+      fetchResults()
+    }
+    
     return (
       <div className="max-w-6xl mx-auto px-4 py-8">
-        <Alert variant="destructive">
-          <h3 className="font-medium">Fehler beim Laden der Analyse</h3>
-          <p>{error}</p>
-        </Alert>
+        <ErrorDisplay 
+          error={error}
+          title="Fehler beim Laden der Analyse"
+          showRetry={true}
+          onRetry={handleRetry}
+          showTechnicalDetails={true}
+        />
       </div>
     )
   }

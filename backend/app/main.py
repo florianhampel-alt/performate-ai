@@ -6,9 +6,13 @@ import uuid
 import os
 import tempfile
 from datetime import datetime
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from typing import Dict, Any, Optional
+from enum import Enum
+from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import Response, JSONResponse
+from fastapi.exception_handlers import http_exception_handler
+from pydantic import BaseModel
 from app.config.base import settings
 from app.utils.logger import get_logger
 
@@ -38,6 +42,35 @@ except Exception as e:
     logger.warning(f"⚠️ Video cache service failed to initialize: {e}")
     video_cache = None
 
+# Enterprise Error Response Models
+class ErrorCategory(str, Enum):
+    CLIENT_ERROR = "client_error"
+    SERVER_ERROR = "server_error"
+    NETWORK_ERROR = "network_error"
+    VALIDATION_ERROR = "validation_error"
+    PROCESSING_ERROR = "processing_error"
+    AUTHENTICATION_ERROR = "authentication_error"
+
+class ErrorSeverity(str, Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+class EnterpriseErrorResponse(BaseModel):
+    detail: str
+    error_code: str
+    category: ErrorCategory
+    severity: ErrorSeverity
+    timestamp: str
+    request_id: Optional[str] = None
+    suggestions: Optional[list[str]] = None
+    technical_details: Optional[Dict[str, Any]] = None
+    retryable: bool = False
+    
+    class Config:
+        use_enum_values = True
+
 # Upload tracking for monitoring
 last_upload_info = {"count": 0, "last_time": None, "last_id": None}
 
@@ -48,6 +81,54 @@ app = FastAPI(
     description="AI-powered sports performance analysis with video overlays",
     version="1.2.0"
 )
+
+# Enterprise Exception Handler
+@app.exception_handler(HTTPException)
+async def enterprise_http_exception_handler(request: Request, exc: HTTPException):
+    """Enhanced exception handler with enterprise-grade error responses"""
+    
+    # Determine error category and severity
+    if 400 <= exc.status_code < 500:
+        category = ErrorCategory.CLIENT_ERROR
+        severity = ErrorSeverity.MEDIUM if exc.status_code == 404 else ErrorSeverity.LOW
+        retryable = False
+    else:
+        category = ErrorCategory.SERVER_ERROR
+        severity = ErrorSeverity.HIGH if exc.status_code >= 500 else ErrorSeverity.MEDIUM
+        retryable = exc.status_code >= 500
+    
+    # Generate suggestions based on error type
+    suggestions = []
+    if exc.status_code == 404:
+        suggestions = ["Überprüfen Sie die URL", "Stellen Sie sicher, dass die Ressource existiert"]
+    elif exc.status_code == 400:
+        suggestions = ["Überprüfen Sie die Eingabedaten", "Stellen Sie sicher, dass alle erforderlichen Felder ausgefüllt sind"]
+    elif exc.status_code >= 500:
+        suggestions = ["Versuchen Sie es in wenigen Minuten erneut", "Kontaktieren Sie den Support, falls das Problem weiterhin besteht"]
+    
+    # Extract more details from the exception
+    technical_details = {
+        "path": str(request.url),
+        "method": request.method,
+        "user_agent": request.headers.get("user-agent", "unknown")
+    }
+    
+    error_response = EnterpriseErrorResponse(
+        detail=str(exc.detail),
+        error_code=f"HTTP_{exc.status_code}",
+        category=category,
+        severity=severity,
+        timestamp=datetime.now().isoformat(),
+        request_id=request.headers.get("x-request-id"),
+        suggestions=suggestions,
+        technical_details=technical_details,
+        retryable=retryable
+    )
+    
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=error_response.dict()
+    )
 
 # CORS middleware - Smart pattern matching for Vercel deployments
 base_allowed_origins = [

@@ -1,7 +1,7 @@
 services:
   # Backend API Service
   - type: web
-    name: performate-ai-backend
+    name: performate-ai
     runtime: python
     plan: starter
     region: oregon
@@ -31,7 +31,7 @@ services:
       - key: UPSTASH_REDIS_REST_TOKEN
         sync: false  # Set manually in Render dashboard
       - key: ALLOWED_HOSTS
-        value: "performate-ai-backend.onrender.com,performate-ai.vercel.app"
+        value: "performate-ai.onrender.com,performate-ai.vercel.app"
       - key: NEXT_PUBLIC_API_URL
         value: "https://performate-ai.onrender.com"
       - key: MAX_FILE_SIZE
