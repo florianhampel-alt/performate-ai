@@ -11,7 +11,8 @@ from datetime import datetime
 
 from app.utils.logger import get_logger
 from app.config.base import settings
-from app.services.frame_extraction_service import frame_extraction_service
+# NEW: Use enterprise video processing system
+from app.services.video_processing import get_video_processing_service, extract_frames_from_video
 
 logger = get_logger(__name__)
 
@@ -60,10 +61,9 @@ class AIVisionService:
         try:
             logger.info(f"Starting AI vision analysis for {analysis_id}")
             
-            # Extract key frames from video
-            extraction_result = await frame_extraction_service.extract_frames_from_video(
-                video_path, analysis_id
-            )
+            # Extract key frames from video using enterprise processing system
+            logger.info(f"🏗️ Using ENTERPRISE video processing system for {analysis_id}")
+            extraction_result = extract_frames_from_video(video_path, analysis_id)
             
             # Handle new frame extraction format
             if isinstance(extraction_result, dict):
@@ -156,7 +156,8 @@ class AIVisionService:
         """Analyze individual frames with GPT-4 Vision"""
         frame_analyses = []
         
-        prompt = frame_extraction_service.get_frame_analysis_prompt(sport_type)
+        # Use the enhanced climbing prompt directly
+        prompt = self._get_enhanced_climbing_prompt() if sport_type in ['climbing', 'bouldering'] else f"Analyze {sport_type}: rate technique 1-10, count moves, assess difficulty."
         
         for i, (base64_image, timestamp) in enumerate(frames):
             try:
@@ -1327,6 +1328,100 @@ If you can see the image, start your response with "I can analyze this climbing 
         
         logger.info(f"✨ Enhanced analysis with {len(route_analysis.get('ideal_route', []))} route points and rich overlays")
         return analysis
+
+
+    def _get_enhanced_climbing_prompt(self) -> str:
+        """Enhanced climbing analysis prompt optimized for production"""
+        return """Du bist ein Kletter-Coach für Technikanalyse. Analysiere die sichtbaren Klettertechniken und Bewegungsmuster in diesem Bild.
+
+WICHTIG: Konzentriere dich nur auf Klettertechniken, Körperpositionen und Bewegungen - NICHT auf die Identifikation von Personen.
+
+# TECHNISCHE ANALYSE-BEREICHE
+
+## KÖRPERPOSITION & TECHNIK
+- Hüftposition zur Wand (optimal: nah an der Wand)
+- Armposition (gestreckt vs. gebeugt)
+- Fußplatzierung und Präzision
+- Körperspannung und Balance
+- Bewegungseffizienz
+
+## GRIFFTECHNIKEN
+- Grifftypen: Jug, Crimp, Sloper, Pinch, Pocket
+- Griffgrößen: Large, Medium, Small, Tiny
+- Hold-Qualität und Nutzung
+
+## ROUTE-EIGENSCHAFTEN
+- Wandwinkel: Vertical, Slab, Overhang, Roof
+- Routenfarbe (für Orientierung)
+- Schwierigkeitsbereich basierend auf sichtbaren Holds
+- Bewegungssequenz-Typ
+
+## LEISTUNGSEBENEN
+
+**ANFÄNGER-MERKMALE:**
+- Hauptsächlich Armkraft statt Beinarbeit
+- Hüfte weit von Wand (30-50cm)
+- Hektische, unkontrollierte Bewegungen
+- Ungenaue Fußplatzierung
+
+**FORTGESCHRITTENE-MERKMALE:**
+- Balance zwischen Arm- und Beinarbeit
+- Bewusste Fußplatzierung
+- Effizienzorientierte Bewegungen
+- Verwendung verschiedener Grifftechniken
+
+**PROFI-MERKMALE:**
+- Perfekte Bewegungseffizienz
+- Innovative Beta-Lösungen
+- Präzise Kraftdosierung
+- Flüssige, ästhetische Bewegungen
+
+---
+
+# ANALYSE-FORMAT
+
+Analysiere in dieser Struktur:
+
+## Routenidentifikation
+**Farbe:** [Sichtbare Routenfarbe]
+**Schwierigkeitsgrad:** [Geschätzter Grad basierend auf Holds, z.B. "V4-V5"]
+**Stil:** [Wandwinkel: Vertical/Slab/Overhang/Roof]
+
+## Technische Bewertung
+**Geschätztes Level:** [Anfänger/Fortgeschritten/Erfahren/Profi]
+**Begründung:** [Basierend auf sichtbare Techniken]
+
+## Positive Technische Aspekte (3-4 Punkte)
+✅ [Gute Körperposition beobachtet]
+✅ [Effiziente Bewegungstechnik]
+✅ [Korrekte Griffnutzung]
+✅ [Andere technische Stärken]
+
+## Technische Verbesserungen (3-4 Punkte)
+⚠️ [Körperposition optimierbar]
+⚠️ [Bewegungseffizienz steigerbar]
+⚠️ [Grifftechnik verbesserbar]
+⚠️ [Andere technische Aspekte]
+
+## Konkrete Technik-Tipps (4-6 Punkte)
+💡 [Spezifische Körperposition-Übung]
+💡 [Grifftechnik-Verbesserung]
+💡 [Bewegungssequenz-Training]
+💡 [Fußarbeit-Übung]
+💡 [Kraft-/Technik-Training]
+💡 [Weitere praktische Empfehlung]
+
+---
+
+# ANALYSE-PRINZIPIEN
+
+1. **Fokus auf Technik:** Nur Bewegungen und Körperpositionen analysieren
+2. **Konkrete Beobachtungen:** Spezifische technische Details
+3. **Konstruktives Feedback:** Verbesserungsvorschläge mit Übungen
+4. **Level-appropriate:** Tipps basierend auf erkanntem Können
+5. **Messbare Aspekte:** Konkrete Distanzen, Winkel, Positionen
+
+Analysiere nun die sichtbaren Klettertechniken in diesem Bild!"""
 
 
 # Global service instance
