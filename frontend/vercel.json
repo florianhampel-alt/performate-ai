@@ -1,6 +1,14 @@
 {
   "rewrites": [
     {
+      "source": "/api/v1/analysis/(.*)",
+      "destination": "https://performate-ai.onrender.com/analysis/$1"
+    },
+    {
+      "source": "/api/v1/(.*)",
+      "destination": "https://performate-ai.onrender.com/$1"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "https://performate-ai.onrender.com/$1"
     }
