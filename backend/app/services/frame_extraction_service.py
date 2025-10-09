@@ -12,6 +12,16 @@ from PIL import Image
 from typing import List, Tuple, Optional
 import numpy as np
 
+# Import imageio with error handling
+try:
+    import imageio
+    import imageio.v3 as iio
+    IMAGEIO_AVAILABLE = True
+except ImportError:
+    IMAGEIO_AVAILABLE = False
+    imageio = None
+    iio = None
+
 from app.utils.logger import get_logger
 from app.services.s3_service import s3_service
 
@@ -60,8 +70,15 @@ class FrameExtractionService:
             if os.path.exists(temp_video_path):
                 file_size = os.path.getsize(temp_video_path)
                 logger.warning(f"🎬 VIDEO FILE DEBUG: {temp_video_path}, Size: {file_size/(1024*1024):.2f}MB")
+                
+                # Additional file validation
+                if file_size < 1024:  # Less than 1KB indicates corrupted download
+                    logger.error(f"❌ VIDEO FILE TOO SMALL: {file_size} bytes - likely corrupted download")
+                    raise Exception(f"Video file is too small ({file_size} bytes) - download likely failed")
+                    
             else:
                 logger.error(f"❌ VIDEO FILE NOT FOUND: {temp_video_path}")
+                raise Exception(f"Video file not found after download: {temp_video_path}")
                 
             # Extract frames using OpenCV
             extraction_result = self._extract_frames_opencv(temp_video_path)
@@ -170,7 +187,13 @@ class FrameExtractionService:
         # TRY IMAGEIO FIRST (more robust than OpenCV)
         try:
             logger.warning(f"🔍 TRYING IMAGEIO for video processing (more robust)")
-            import imageio.v3 as iio
+            
+            # Check imageio availability
+            if not IMAGEIO_AVAILABLE:
+                logger.error(f"❌ IMAGEIO NOT AVAILABLE - was not imported successfully")
+                raise Exception(f"Imageio not installed - this should have been installed in build step")
+            
+            logger.warning(f"✅ IMAGEIO AVAILABLE: {imageio.__version__ if hasattr(imageio, '__version__') else 'version unknown'}")
             
             # Get video properties with imageio
             props = iio.improps(video_path)
