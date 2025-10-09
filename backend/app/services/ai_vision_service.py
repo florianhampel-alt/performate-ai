@@ -11,8 +11,9 @@ from datetime import datetime
 
 from app.utils.logger import get_logger
 from app.config.base import settings
-# NEW: Use enterprise video processing system
+# NEW: Use enterprise video processing system ONLY
 from app.services.video_processing import get_video_processing_service, extract_frames_from_video
+logger.warning(f"✅ ENTERPRISE VIDEO PROCESSING SYSTEM LOADED - NO FALLBACKS")
 
 logger = get_logger(__name__)
 
@@ -61,9 +62,10 @@ class AIVisionService:
         try:
             logger.info(f"Starting AI vision analysis for {analysis_id}")
             
-            # Extract key frames from video using enterprise processing system
+            # Extract key frames using ENTERPRISE system ONLY - NO FALLBACKS
             logger.info(f"🏗️ Using ENTERPRISE video processing system for {analysis_id}")
             extraction_result = await extract_frames_from_video(video_path, analysis_id)
+            logger.info(f"📊 ENTERPRISE EXTRACTION RESULT: {extraction_result}")
             
             # Handle new frame extraction format
             if isinstance(extraction_result, dict):
@@ -156,7 +158,7 @@ class AIVisionService:
         """Analyze individual frames with GPT-4 Vision"""
         frame_analyses = []
         
-        # Use the enhanced climbing prompt directly
+        # Use enhanced climbing prompt - NO FALLBACKS
         prompt = self._get_enhanced_climbing_prompt() if sport_type in ['climbing', 'bouldering'] else f"Analyze {sport_type}: rate technique 1-10, count moves, assess difficulty."
         
         for i, (base64_image, timestamp) in enumerate(frames):
