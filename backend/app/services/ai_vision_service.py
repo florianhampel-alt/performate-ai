@@ -13,9 +13,9 @@ from app.utils.logger import get_logger
 from app.config.base import settings
 # NEW: Use enterprise video processing system ONLY
 from app.services.video_processing import get_video_processing_service, extract_frames_from_video
-logger.warning(f"✅ ENTERPRISE VIDEO PROCESSING SYSTEM LOADED - NO FALLBACKS")
 
 logger = get_logger(__name__)
+logger.warning(f"✅ ENTERPRISE VIDEO PROCESSING SYSTEM LOADED - NO FALLBACKS")
 
 
 class AIVisionService:
@@ -171,43 +171,42 @@ class AIVisionService:
                 if not base64_image or len(base64_image) < 1000:
                     logger.error(f"❌ INVALID/EMPTY IMAGE DATA at frame {i+1}")
                     raise Exception(f"Frame {i+1} has invalid image data - cannot proceed without real images")
-                    
-                # Process only valid images:
-                    # Debug image data
-                    image_size = len(base64_image)
-                    image_preview = base64_image[:100] + "..." if len(base64_image) > 100 else base64_image
-                    logger.warning(f"🖼️ IMAGE DEBUG: Size={image_size} chars, Preview={image_preview}")
-                    
-                    # Add explicit prompt to help AI identify if image is received
-                    enhanced_prompt = f"""
+                
+                # Debug image data
+                image_size = len(base64_image)
+                image_preview = base64_image[:100] + "..." if len(base64_image) > 100 else base64_image
+                logger.warning(f"🖼️ IMAGE DEBUG: Size={image_size} chars, Preview={image_preview}")
+                
+                # Add explicit prompt to help AI identify if image is received
+                enhanced_prompt = f"""
 {prompt}
 
 IMPORTANT: Please confirm if you can see and analyze the climbing image. 
 If you cannot see the image, start your response with "I cannot see the climbing image."
 If you can see the image, start your response with "I can analyze this climbing image."
-                    """
-                    
-                    # Normal vision analysis
-                    response = await self.client.chat.completions.create(
-                        model=self.model,
-                        messages=[
-                            {
-                                "role": "user",
-                                "content": [
-                                    {"type": "text", "text": enhanced_prompt},
-                                    {
-                                        "type": "image_url",
-                                        "image_url": {
-                                            "url": f"data:image/jpeg;base64,{base64_image}",
-                                            "detail": "high"
-                                        }
+                """
+                
+                # Normal vision analysis
+                response = await self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": enhanced_prompt},
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:image/jpeg;base64,{base64_image}",
+                                        "detail": "high"
                                     }
-                                ]
-                            }
-                        ],
-                        max_tokens=self.max_tokens,
-                        temperature=0.3  # Lower temperature for more consistent analysis
-                    )
+                                }
+                            ]
+                        }
+                    ],
+                    max_tokens=self.max_tokens,
+                    temperature=0.3  # Lower temperature for more consistent analysis
+                )
                 
                 # LOG ACTUAL TOKEN USAGE
                 if hasattr(response, 'usage') and response.usage:
