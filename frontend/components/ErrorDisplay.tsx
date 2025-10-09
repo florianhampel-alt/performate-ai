@@ -37,14 +37,14 @@ export default function ErrorDisplay({
     ? normalizedError.getUserMessage()
     : normalizedError.message
 
-  const errorSeverity = isApiError && isApiError.isClientError()
-    ? 'warning'
+  const errorSeverity = isApiError && normalizedError.isClientError()
+    ? 'default'
     : 'destructive'
 
   const handleCopyDetails = async () => {
     if (!isApiError) return
     
-    const details = JSON.stringify(isApiError.getTechnicalDetails(), null, 2)
+    const details = JSON.stringify((normalizedError as ApiError).getTechnicalDetails(), null, 2)
     
     try {
       await navigator.clipboard.writeText(details)
@@ -123,23 +123,23 @@ export default function ErrorDisplay({
           
           <div className="space-y-2 text-xs text-gray-600 font-mono">
             <div>
-              <span className="font-semibold">Status:</span> {normalizedError.status || 'N/A'}
+              <span className="font-semibold">Status:</span> {isApiError ? (normalizedError as ApiError).status : 'N/A'}
             </div>
             <div>
-              <span className="font-semibold">Zeitpunkt:</span> {isApiError.timestamp}
+              <span className="font-semibold">Zeitpunkt:</span> {(normalizedError as ApiError).timestamp}
             </div>
             <div>
-              <span className="font-semibold">Request:</span> {isApiError.requestMethod} {isApiError.requestUrl}
+              <span className="font-semibold">Request:</span> {(normalizedError as ApiError).requestMethod} {(normalizedError as ApiError).requestUrl}
             </div>
-            {isApiError.response && (
+            {(normalizedError as ApiError).response && (
               <div>
                 <span className="font-semibold">Response:</span>
                 <pre className="mt-1 p-2 bg-white border rounded text-xs overflow-x-auto">
-                  {JSON.stringify(isApiError.response, null, 2)}
+                  {JSON.stringify((normalizedError as ApiError).response, null, 2)}
                 </pre>
               </div>
             )}
-            {isApiError.isRetryable() && (
+            {(normalizedError as ApiError).isRetryable() && (
               <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded">
                 <span className="text-blue-700 text-xs">
                   💡 Dieser Fehler kann durch Wiederholen behoben werden (5xx Server Error)
@@ -153,13 +153,13 @@ export default function ErrorDisplay({
       {/* Error category info */}
       {isApiError && (
         <div className="text-xs text-gray-500">
-          {isApiError.isClientError() && (
+          {(normalizedError as ApiError).isClientError() && (
             <span>ℹ️ Client-Fehler - Überprüfen Sie Ihre Eingabe</span>
           )}
-          {isApiError.status >= 500 && (
+          {(normalizedError as ApiError).status >= 500 && (
             <span>⚠️ Server-Fehler - Vorübergehendes Problem, versuchen Sie es später erneut</span>
           )}
-          {isApiError.status === 0 && (
+          {(normalizedError as ApiError).status === 0 && (
             <span>🌐 Netzwerk-Fehler - Überprüfen Sie Ihre Internetverbindung</span>
           )}
         </div>

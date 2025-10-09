@@ -104,8 +104,9 @@ export default function VideoUpload() {
     },
     maxFiles: 1,
     maxSize: 120 * 1024 * 1024, // 120MB
-    disabled: uploadStatus === 'uploading' || uploadStatus === 'analyzing'
-  })
+    disabled: uploadStatus === 'uploading' || uploadStatus === 'analyzing',
+    multiple: false
+  } as any)
 
   const resetUpload = () => {
     setUploadStatus('idle')
@@ -150,7 +151,7 @@ export default function VideoUpload() {
             {...getRootProps()}
             className={`upload-area ${isDragActive ? 'drag-over' : ''}`}
           >
-            <input {...getInputProps()} />
+            <input {...getInputProps() as any} />
             <div className="flex flex-col items-center">
               <div className="text-4xl mb-4">📹</div>
               <p className="text-lg font-medium mb-2">
