@@ -33,7 +33,7 @@ services:
       - key: ALLOWED_HOSTS
         value: "performate-ai-backend.onrender.com,performate-ai.vercel.app"
       - key: NEXT_PUBLIC_API_URL
-        value: "https://performate-ai-backend.onrender.com"
+        value: "https://performate-ai.onrender.com"
       - key: MAX_FILE_SIZE
         value: "104857600"  # 100MB
       - key: ENABLE_AI_ANALYSIS
