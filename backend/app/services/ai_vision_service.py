@@ -63,7 +63,7 @@ class AIVisionService:
             
             # Extract key frames from video using enterprise processing system
             logger.info(f"🏗️ Using ENTERPRISE video processing system for {analysis_id}")
-            extraction_result = extract_frames_from_video(video_path, analysis_id)
+            extraction_result = await extract_frames_from_video(video_path, analysis_id)
             
             # Handle new frame extraction format
             if isinstance(extraction_result, dict):

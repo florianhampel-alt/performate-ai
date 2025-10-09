@@ -43,7 +43,7 @@ def get_video_processing_service() -> VideoProcessingService:
 
 
 # Legacy compatibility functions for frame_extraction_service
-def extract_frames_from_video(video_path: str, analysis_id: str) -> dict:
+async def extract_frames_from_video(video_path: str, analysis_id: str) -> dict:
     """
     Legacy compatibility function
     
@@ -51,12 +51,24 @@ def extract_frames_from_video(video_path: str, analysis_id: str) -> dict:
         Dict with legacy format for backward compatibility
     """
     try:
+        # Import logging for detailed diagnostics
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.info(f"🏗️ ENTERPRISE PROCESSING START for {analysis_id}")
+        logger.info(f"   Video path: {video_path}")
+        
         service = get_video_processing_service()
+        logger.info(f"   Service initialized successfully")
+        
         result = service.process_video(video_path, max_frames=5)
+        logger.info(f"   Processing completed: {result.get_summary()}")
         
         if result.success:
             # Convert to legacy format
             frames = [(frame.base64_data, frame.timestamp) for frame in result.frames]
+            
+            logger.info(f"✅ ENTERPRISE SUCCESS: {len(frames)} frames extracted, duration={result.video_metadata.duration:.1f}s")
             
             return {
                 'frames': frames,
@@ -64,26 +76,42 @@ def extract_frames_from_video(video_path: str, analysis_id: str) -> dict:
                 'total_frames': result.video_metadata.total_frames,
                 'fps': result.video_metadata.fps,
                 'success': True,
-                'extraction_method': result.processor_used
+                'extraction_method': f'enterprise_{result.processor_used}'
             }
         else:
+            error_code = result.error.error_code if result.error else 'UNKNOWN_ERROR'
+            error_details = result.error.details if result.error else {}
+            
+            logger.error(f"❌ ENTERPRISE FAILURE: {error_code}")
+            logger.error(f"   Error details: {error_details}")
+            logger.error(f"   Processing time: {result.processing_time_ms:.1f}ms")
+            
             return {
                 'frames': [],
                 'video_duration': 0,
                 'total_frames': 0,
                 'fps': 0,
                 'success': False,
-                'error': result.error.error_code if result.error else 'UNKNOWN_ERROR'
+                'error': f'ENTERPRISE_{error_code}',
+                'error_details': error_details
             }
             
     except Exception as e:
+        import logging
+        import traceback
+        logger = logging.getLogger(__name__)
+        
+        logger.error(f"❌ ENTERPRISE SYSTEM EXCEPTION: {str(e)}")
+        logger.error(f"   Traceback: {traceback.format_exc()}")
+        
         return {
             'frames': [],
             'video_duration': 0,
             'total_frames': 0,
             'fps': 0,
             'success': False,
-            'error': f'COMPATIBILITY_ERROR: {str(e)}'
+            'error': f'ENTERPRISE_EXCEPTION: {str(e)}',
+            'traceback': traceback.format_exc()
         }
 
 
