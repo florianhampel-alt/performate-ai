@@ -214,23 +214,30 @@ async def clear_all_caches():
         
         # Clear Redis cache if available
         if redis_service:
-            # Clear analysis results
-            analysis_keys = await redis_service.redis.keys("analysis:*")
-            if analysis_keys:
-                await redis_service.redis.delete(*analysis_keys)
-                cleared_items.append(f"redis_analysis_keys ({len(analysis_keys)})")
-            
-            # Clear video metadata
-            video_keys = await redis_service.redis.keys("video:*")
-            video_meta_keys = await redis_service.redis.keys("video_meta:*")
-            if video_keys:
-                await redis_service.redis.delete(*video_keys)
-                cleared_items.append(f"redis_video_keys ({len(video_keys)})")
-            if video_meta_keys:
-                await redis_service.redis.delete(*video_meta_keys)
-                cleared_items.append(f"redis_video_meta_keys ({len(video_meta_keys)})")
-            
-            logger.info("✅ Redis caches cleared")
+            try:
+                # Clear analysis results
+                analysis_keys = await redis_service.keys("analysis:*")
+                if analysis_keys:
+                    for key in analysis_keys:
+                        await redis_service.delete(key)
+                    cleared_items.append(f"redis_analysis_keys ({len(analysis_keys)})")
+                
+                # Clear video metadata
+                video_keys = await redis_service.keys("video:*")
+                video_meta_keys = await redis_service.keys("video_meta:*")
+                if video_keys:
+                    for key in video_keys:
+                        await redis_service.delete(key)
+                    cleared_items.append(f"redis_video_keys ({len(video_keys)})")
+                if video_meta_keys:
+                    for key in video_meta_keys:
+                        await redis_service.delete(key)
+                    cleared_items.append(f"redis_video_meta_keys ({len(video_meta_keys)})")
+                
+                logger.info("✅ Redis caches cleared")
+            except Exception as redis_error:
+                logger.warning(f"⚠️ Redis cache clearing failed: {redis_error}")
+                cleared_items.append(f"redis_error: {str(redis_error)}")
         
         return {
             "status": "success",
