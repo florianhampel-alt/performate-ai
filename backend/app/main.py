@@ -5,6 +5,7 @@ FastAPI Entry Point for Performate AI - Clean Production Version
 import uuid
 import os
 import tempfile
+from datetime import datetime
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
@@ -197,6 +198,54 @@ async def get_last_ai_responses():
     except Exception as e:
         logger.error(f"❌ Debug endpoint failed: {str(e)}")
         return {"error": f"Debug endpoint failed: {str(e)}"}
+
+@app.post("/debug/clear-cache")
+async def clear_all_caches():
+    """Clear all caches for debugging"""
+    logger.info("🧹 Clearing all caches...")
+    cleared_items = []
+    
+    try:
+        # Clear video cache if available
+        if video_cache:
+            video_cache.clear()
+            cleared_items.append("video_cache")
+            logger.info("✅ Video cache cleared")
+        
+        # Clear Redis cache if available
+        if redis_service:
+            # Clear analysis results
+            analysis_keys = await redis_service.redis.keys("analysis:*")
+            if analysis_keys:
+                await redis_service.redis.delete(*analysis_keys)
+                cleared_items.append(f"redis_analysis_keys ({len(analysis_keys)})")
+            
+            # Clear video metadata
+            video_keys = await redis_service.redis.keys("video:*")
+            video_meta_keys = await redis_service.redis.keys("video_meta:*")
+            if video_keys:
+                await redis_service.redis.delete(*video_keys)
+                cleared_items.append(f"redis_video_keys ({len(video_keys)})")
+            if video_meta_keys:
+                await redis_service.redis.delete(*video_meta_keys)
+                cleared_items.append(f"redis_video_meta_keys ({len(video_meta_keys)})")
+            
+            logger.info("✅ Redis caches cleared")
+        
+        return {
+            "status": "success",
+            "message": "All caches cleared",
+            "cleared_items": cleared_items,
+            "timestamp": datetime.now().isoformat()
+        }
+    
+    except Exception as e:
+        logger.error(f"❌ Cache clearing failed: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Cache clearing failed: {str(e)}",
+            "cleared_items": cleared_items
+        }
 
 @app.options("/upload")
 async def upload_options():
