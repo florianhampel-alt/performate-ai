@@ -8,7 +8,7 @@ import { Alert } from '@/components/ui/alert'
 import { Select } from '@/components/ui/select'
 import { Card } from '@/components/ui/card'
 import LoadingSpinner from '@/components/LoadingSpinner'
-import { uploadVideo, startAnalysis } from '@/lib/api'
+import { uploadVideo } from '@/lib/api'
 import type { SportType, UploadStatus } from '@/lib/types'
 
 const SUPPORTED_SPORTS: SportType[] = [
