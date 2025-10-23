@@ -1,11 +1,35 @@
 import type { SportType, AnalysisResult, UploadResponse } from './types'
 
+// 🔥 PRODUCTION FIX: Ensure API URL is ALWAYS set, even if env var missing on Vercel
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://performate-ai.onrender.com'
 
-// Debug logging
-console.log('API Configuration:')
-console.log('NEXT_PUBLIC_API_URL:', process.env.NEXT_PUBLIC_API_URL)
-console.log('API_BASE_URL:', API_BASE_URL)
+// Debug logging with CLEAR visibility
+if (typeof window !== 'undefined') {
+  console.log('%c=== API CONFIGURATION ==', 'background: #222; color: #bada55; font-size: 16px; font-weight: bold;')
+  console.log('%cNEXT_PUBLIC_API_URL:', 'color: #4CAF50; font-weight: bold;', process.env.NEXT_PUBLIC_API_URL || 'NOT SET (using fallback)')
+  console.log('%cAPI_BASE_URL (actual):', 'color: #2196F3; font-weight: bold;', API_BASE_URL)
+  console.log('%cEnvironment:', 'color: #FF9800; font-weight: bold;', process.env.NODE_ENV)
+  console.log('%c========================', 'background: #222; color: #bada55;')
+}
+
+// 🚨 CRITICAL: Validate API URL is accessible
+if (typeof window !== 'undefined') {
+  const testUrl = `${API_BASE_URL}/health`
+  fetch(testUrl, { method: 'GET', mode: 'cors' })
+    .then(res => {
+      if (res.ok) {
+        console.log('%c✅ Backend is REACHABLE', 'color: green; font-weight: bold;', testUrl)
+      } else {
+        console.error('%c❌ Backend returned non-OK status:', 'color: red; font-weight: bold;', res.status, testUrl)
+      }
+    })
+    .catch(err => {
+      console.error('%c🚨 CRITICAL: Cannot reach backend!', 'color: red; font-size: 16px; font-weight: bold;')
+      console.error('%cURL:', 'font-weight: bold;', testUrl)
+      console.error('%cError:', 'font-weight: bold;', err.message)
+      console.error('%cThis will cause "Failed to fetch" errors on upload!', 'color: red;')
+    })
+}
 
 export class ApiError extends Error {
   public readonly timestamp: string
