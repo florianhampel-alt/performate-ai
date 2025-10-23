@@ -441,8 +441,15 @@ async def init_upload(request: dict):
         # Check service availability
         if not s3_service:
             raise HTTPException(status_code=503, detail="S3 service unavailable")
+        
+        # Video cache is optional - Redis can be used as fallback
+        use_redis_fallback = False
         if not video_cache:
-            raise HTTPException(status_code=503, detail="Video cache service unavailable")
+            if not redis_service:
+                raise HTTPException(status_code=503, detail="No caching service available (neither video_cache nor redis)")
+            logger.info("Using Redis as fallback for video metadata storage")
+            use_redis_fallback = True
+        
         # Extract request data
         filename = request.get('filename', 'video.mp4')
         content_type = request.get('content_type', 'video/mp4')
@@ -476,15 +483,22 @@ async def init_upload(request: dict):
         if not presigned_data:
             raise HTTPException(status_code=500, detail="Failed to generate upload URL")
         
-        # Store pending upload metadata in cache
-        video_cache.set(analysis_id, {
+        # Store pending upload metadata in cache (or Redis as fallback)
+        metadata = {
             's3_key': s3_key,
             'filename': filename,
             'content_type': content_type,
             'size': file_size,
             'status': 'pending_upload',
             'storage_type': 's3',
-        })
+        }
+        
+        if video_cache:
+            video_cache.set(analysis_id, metadata)
+        else:
+            # Redis fallback
+            await redis_service.set_json(f"video_meta:{analysis_id}", metadata, expire=1800)
+            logger.info(f"Stored metadata in Redis (fallback) for {analysis_id}")
         
         logger.info(f"Upload initialized for {analysis_id}: {filename} ({file_size/(1024*1024):.1f}MB)")
         
@@ -508,14 +522,29 @@ async def complete_upload(request: dict):
         analysis_id = request.get('analysis_id')
         if not analysis_id:
             raise HTTPException(status_code=400, detail="Missing analysis_id")
-            
-        video_info = video_cache.get(analysis_id)
+        
+        # Try video_cache first, fallback to Redis
+        video_info = None
+        if video_cache:
+            video_info = video_cache.get(analysis_id)
+        
+        if not video_info and redis_service:
+            # Try Redis fallback
+            video_info = await redis_service.get_json(f"video_meta:{analysis_id}")
+            logger.info(f"Retrieved metadata from Redis (fallback) for {analysis_id}")
+        
         if not video_info:
             raise HTTPException(status_code=404, detail="Upload session not found")
         
         # Update status to processing
         video_info['status'] = 'processing'
-        video_cache.set(analysis_id, video_info)
+        
+        if video_cache:
+            video_cache.set(analysis_id, video_info)
+        else:
+            # Redis fallback
+            await redis_service.set_json(f"video_meta:{analysis_id}", video_info, expire=7200)
+        
         logger.info(f"Starting analysis for {analysis_id}: {video_info['filename']}")
         
         # Store metadata in Redis for persistence
