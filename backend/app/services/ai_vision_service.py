@@ -52,15 +52,51 @@ class AIVisionService:
         Analyze climbing video using GPT-4 Vision
         
         Args:
-            video_path: Path to video file
+            video_path: Path to video file (can be S3 key, local path, or URL)
             analysis_id: Unique analysis ID
             sport_type: Type of climbing (climbing, bouldering)
             
         Returns:
             Complete analysis with route data and overlay information
         """
+        temp_file = None
         try:
             logger.info(f"Starting AI vision analysis for {analysis_id}")
+            
+            # 🔧 HOTFIX: Download from S3 if video_path is an S3 key
+            if not video_path.startswith(('/', 'http://', 'https://')):
+                # It's an S3 key, download to temp file
+                import tempfile
+                import aiohttp
+                from app.services.s3_service import s3_service
+                
+                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4', mode='wb')
+                logger.info(f"🔽 Downloading S3 key {video_path} to {temp_file.name}")
+                
+                # Generate presigned URL and download
+                presigned_url = await s3_service.generate_presigned_url(video_path, expires_in=3600)
+                if not presigned_url:
+                    raise Exception(f"Failed to generate presigned URL for {video_path}")
+                
+                logger.info(f"📡 Presigned URL generated, downloading video...")
+                
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(presigned_url) as response:
+                        if response.status != 200:
+                            raise Exception(f"Failed to download video: HTTP {response.status}")
+                        
+                        # Stream download in chunks
+                        total_bytes = 0
+                        chunk_size = 8 * 1024 * 1024  # 8MB chunks
+                        async for chunk in response.content.iter_chunked(chunk_size):
+                            temp_file.write(chunk)
+                            total_bytes += len(chunk)
+                        
+                        logger.info(f"✅ Video downloaded successfully: {total_bytes/(1024*1024):.1f}MB")
+                
+                temp_file.close()
+                video_path = temp_file.name  # Use local path from now on
+                logger.info(f"📂 Using local video path: {video_path}")
             
             # Extract key frames using ENTERPRISE system ONLY - NO FALLBACKS
             logger.info(f"🏗️ Using ENTERPRISE video processing system for {analysis_id}")
@@ -149,6 +185,17 @@ class AIVisionService:
         except Exception as e:
             logger.error(f"❌ AI vision analysis FAILED for {analysis_id}: {str(e)}")
             raise Exception(f"AI analysis failed - NO FALLBACKS: {str(e)}")
+        
+        finally:
+            # Cleanup temp file
+            if temp_file is not None:
+                import os
+                try:
+                    if os.path.exists(temp_file.name):
+                        os.unlink(temp_file.name)
+                        logger.info(f"🗑️ Cleaned up temp file: {temp_file.name}")
+                except Exception as cleanup_err:
+                    logger.warning(f"⚠️ Failed to cleanup temp file: {cleanup_err}")
     
     async def _analyze_frames(
         self, 

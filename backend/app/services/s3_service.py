@@ -49,6 +49,33 @@ class S3Service:
             logger.error(f"Failed to upload file to S3: {str(e)}")
             return False
 
+    async def generate_presigned_url(self, key: str, expires_in: int = 3600) -> Optional[str]:
+        """
+        Generate presigned URL for S3 object
+        
+        Args:
+            key: S3 object key
+            expires_in: URL validity in seconds (default 1 hour)
+            
+        Returns:
+            Presigned URL if successful, None if failed
+        """
+        if not self.enabled:
+            logger.warning("S3 not configured - cannot generate presigned URL")
+            return None
+            
+        try:
+            url = self.client.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': self.bucket, 'Key': key},
+                ExpiresIn=expires_in
+            )
+            logger.info(f"Generated presigned URL for {key} (expires in {expires_in}s)")
+            return url
+        except Exception as e:
+            logger.error(f"Failed to generate presigned URL for {key}: {str(e)}")
+            return None
+
     async def upload_video_stream(
         self, 
         video_stream, 
