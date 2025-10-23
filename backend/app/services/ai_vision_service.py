@@ -323,16 +323,17 @@ If you can see the image, start your response with "I can analyze this climbing 
             raise Exception(f"Enhanced frame analysis parsing failed: {str(e)}")
     
     def _parse_enhanced_format(self, analysis_text: str) -> Optional[Dict[str, Any]]:
-        """Parse new enhanced format with structured sections"""
+        """Parse new enhanced format with structured sections - strict validation mode"""
         import re
         
+        # Initialize with NO defaults for critical fields - these MUST be extracted
         parsed_data = {
-            'technique_score': 7.0,
-            'route_color': 'unbekannt', 
-            'move_count': 3,
-            'visual_difficulty': 5.0,
-            'wall_angle': 'vertical',
-            'climber_level': 'fortgeschritten',
+            'technique_score': None,
+            'route_color': None, 
+            'move_count': None,
+            'visual_difficulty': None,
+            'wall_angle': None,
+            'climber_level': None,
             'positive_aspects': [],
             'improvement_areas': [],
             'concrete_tips': [],
@@ -365,11 +366,19 @@ If you can see the image, start your response with "I can analyze this climbing 
                         parsed_data['route_color'] = value
                         break
             
-            # Extract difficulty grade and convert to numerical
+            # Validate route color was extracted
+            if not parsed_data.get('route_color'):
+                logger.error("❌ VALIDATION FAILED: Route color not extracted or invalid")
+                raise ValueError("Missing or invalid route color in AI response")
+            
+        # Extract difficulty grade and convert to numerical
             diff_match = re.search(r'\*\*Schwierigkeitsgrad:\*\*\s*([^\n]+)', route_section)
             if diff_match:
                 difficulty_text = diff_match.group(1).strip()
                 parsed_data['visual_difficulty'] = self._extract_difficulty_from_grade(difficulty_text)
+            else:
+                logger.error("❌ VALIDATION FAILED: No difficulty grade found in route section")
+                raise ValueError("Missing Schwierigkeitsgrad in AI response")
             
             # Extract wall angle/style
             style_match = re.search(r'\*\*Stil:\*\*\s*([^\n]+)', route_section)
@@ -422,6 +431,11 @@ If you can see the image, start your response with "I can analyze this climbing 
         parsed_data['grips'] = grips
         logger.warning(f"🧗 EXTRACTED {len(grips)} GRIPS from AI response")
         
+        # STRICT VALIDATION: Require minimum grips data
+        if len(grips) == 0:
+            logger.error("❌ VALIDATION FAILED: No grips extracted from AI response")
+            raise ValueError("No grip data found in AI response - analysis incomplete")
+        
         # Extract positive aspects
         positive_match = re.search(r'## Positive Aspekte.*?\\n(.*?)(?=##|$)', analysis_text, re.DOTALL)
         if positive_match:
@@ -443,6 +457,19 @@ If you can see the image, start your response with "I can analyze this climbing 
             tips_items = re.findall(r'💡\s*([^\n]+)', tips_text)
             parsed_data['concrete_tips'] = tips_items[:7]  # Limit to 7
         
+        # STRICT VALIDATION: Ensure critical fields were extracted
+        if parsed_data['visual_difficulty'] is None:
+            logger.error("❌ VALIDATION FAILED: visual_difficulty is still None")
+            raise ValueError("Failed to extract valid difficulty from AI response")
+        
+        if parsed_data['route_color'] is None:
+            logger.error("❌ VALIDATION FAILED: route_color is still None")
+            raise ValueError("Failed to extract valid route color from AI response")
+        
+        if parsed_data['climber_level'] is None:
+            logger.warning("⚠️ climber_level not extracted, using default 'fortgeschritten'")
+            parsed_data['climber_level'] = 'fortgeschritten'
+        
         # Estimate move count based on difficulty and level
         difficulty = parsed_data['visual_difficulty']
         level = parsed_data['climber_level']
@@ -453,6 +480,23 @@ If you can see the image, start your response with "I can analyze this climbing 
             parsed_data['move_count'] = max(4, min(8, int(difficulty // 1.5) + 2))
         else:  # erfahren, profi
             parsed_data['move_count'] = max(5, min(12, int(difficulty) + 2))
+        
+        # Set default wall_angle if not extracted
+        if parsed_data['wall_angle'] is None:
+            logger.warning("⚠️ wall_angle not extracted, using default 'vertical'")
+            parsed_data['wall_angle'] = 'vertical'
+        
+        # Set default technique_score based on climber_level if not set
+        if parsed_data['technique_score'] is None:
+            if level == 'anfänger':
+                parsed_data['technique_score'] = 5.0
+            elif level == 'fortgeschritten':
+                parsed_data['technique_score'] = 7.0
+            elif level == 'erfahren':
+                parsed_data['technique_score'] = 8.0
+            else:  # profi
+                parsed_data['technique_score'] = 9.0
+            logger.warning(f"⚠️ technique_score not extracted, using default {parsed_data['technique_score']} based on level")
         
         # Set wall angle and hold characteristics based on difficulty
         if difficulty >= 7:
@@ -1403,91 +1447,176 @@ If you can see the image, start your response with "I can analyze this climbing 
 
     def _get_enhanced_climbing_prompt(self) -> str:
         """Optimized climbing analysis prompt with grip mapping and route context"""
-        return """Du bist ein professioneller Kletter-Coach. Analysiere die Klettertechnik in diesem Bild.
+        return """Du bist ein professioneller Kletter-Coach. Analysiere die Klettertechnik in diesem Bild mit höchster Präzision.
 
-# WICHTIGE KLETTER-KONVENTIONEN
+# KRITISCHE ANFORDERUNG: STRUKTURIERTE DATENAUSGABE
 
-## ROUTEN-SYSTEM
-- **Grifffarben** = Route-Identifikation (z.B. "rote Route", "blaue Route")
-- Der Kletterer wählt EINE Farbe und klettert nur diese Griffe
-- **Graue/Schwarze Wandvorsprünge** = NEUTRAL, immer erlaubt (Volumes/Features)
-- **Schwierigkeit** wird bestimmt durch:
-  - Position der Griffe (weit auseinander = schwerer)
-  - Griffform (Crimp = schwerer als Jug)
-  - Griffgröße (kleine Griffe = schwerer)
-  - Gesamte Anordnung und Sequenz
-
-## BEISPIEL
-- Route: "Gelbe Route" → Kletterer nutzt NUR gelbe Griffe + neutrale Volumes
-- Schwierigkeit: 6a → basierend auf kleinen Crimps, weiten Zügen, Overhang
+Deine Analyse MUSS exakt die folgende Struktur einhalten. Fehlende oder falsch formatierte Daten führen zu Parsing-Fehlern.
 
 ---
 
-# ANALYSE-AUFGABE
+## Routenidentifikation
 
-Analysiere systematisch:
+**PFLICHTFELDER - MÜSSEN IMMER vorhanden sein:**
 
-## 1. ROUTE-IDENTIFIKATION
-- **Gewählte Route:** [Farbe der Griffe, die der Kletterer nutzt]
-- **Neutrale Features:** [Sind graue/schwarze Volumes sichtbar?]
-- **Schwierigkeitsgrad:** [Geschätzter Grad basierend auf Grip-Eigenschaften]
-  - Begründung: [Warum dieser Grad? Position/Form/Größe der Griffe]
+**Farbe:** [EXAKT eine dieser Farben: rot/blau/grün/gelb/orange/lila/rosa/weiß/schwarz]
+**Schwierigkeitsgrad:** [Climbing-Grad wie "5c", "6a", "6b+", "7a" ODER Boulder-Grad wie "V2", "V4", "V6"]
+**Stil:** [vertical/overhang/slab/steep_overhang]
 
-## 2. GRIP-KARTIERUNG (FÜR ROUTE-OVERLAY)
+**Wichtig zur Routenfarbe:**
+- Der Kletterer nutzt NUR Griffe EINER Farbe (außer graue/schwarze Volumes = neutral)
+- Identifiziere die Farbe durch die Griffe, die der Kletterer aktiv nutzt
+- Falls mehrere Farben sichtbar: Wähle die dominante Farbe der aktiv genutzten Griffe
 
-**WICHTIG:** Liste ALLE sichtbaren Griffe der gewählten Route + neutrale Features!
+**Wichtig zum Schwierigkeitsgrad:**
+- Bewerte basierend auf: Griffgröße, Grifftyp, Abstand zwischen Griffen, Wandwinkel
+- Kleine Crimps + weite Abstände = schwerer (6b+ bis 7a+)
+- Große Jugs + enge Abstände = leichter (4c bis 5c)
+- Overhang erhöht Schwierigkeit um 1-2 Grade
 
-Format für jeden Grip:
-📍 **Grip [Nummer]:**
-   - Position: [Relative Position: "oben links", "oben mitte", "oben rechts", "mitte links", "mitte", "mitte rechts", "unten links", "unten mitte", "unten rechts"]
-   - Typ: [Jug/Crimp/Sloper/Pinch/Pocket/Volume]
-   - Größe: [Large/Medium/Small/Tiny]
-   - Farbe: [Routenfarbe ODER "neutral" für graue/schwarze Features]
-   - Aktiv genutzt: [Ja/Nein - berührt der Kletterer diesen Grip gerade?]
-   - Entfernung zum nächsten: [Nah/Mittel/Weit]
+---
 
-**Beispiel:**
+## Grip-Kartierung
+
+**KRITISCH:** Diese Sektion ist ESSENTIELL für die visuelle Overlay-Darstellung!
+
+**Du MUSST MINDESTENS 5-8 Griffe kartieren** im EXAKTEN Format:
+
 📍 Grip 1: Position=oben links, Typ=Jug, Größe=Large, Farbe=Rot, Aktiv=Ja, Entfernung=Mittel
 📍 Grip 2: Position=oben mitte, Typ=Crimp, Größe=Small, Farbe=Rot, Aktiv=Nein, Entfernung=Weit
-📍 Grip 3: Position=mitte, Typ=Volume, Größe=Large, Farbe=neutral, Aktiv=Ja, Entfernung=Nah
+📍 Grip 3: Position=mitte rechts, Typ=Sloper, Größe=Medium, Farbe=Rot, Aktiv=Ja, Entfernung=Nah
+📍 Grip 4: Position=mitte links, Typ=Volume, Größe=Large, Farbe=neutral, Aktiv=Ja, Entfernung=Mittel
+📍 Grip 5: Position=unten mitte, Typ=Pinch, Größe=Small, Farbe=Rot, Aktiv=Nein, Entfernung=Weit
 
-## 3. KLETTERER-LEVEL & TECHNIK
-- **Level:** [Anfänger/Fortgeschritten/Erfahren/Profi]
-- **Technik-Score:** [1-10]
-- **Begründung:** [Körperposition, Bewegungsqualität, Effizienz]
+**Erlaubte Werte (verwende NUR diese):**
 
-**Level-Kriterien:**
-- **Anfänger (1-4):** Armkraft dominant, Hüfte >30cm von Wand, ungenaue Füße, hektisch
-- **Fortgeschritten (5-7):** Balance Arm/Bein, bewusste Fußarbeit, kontrolliert, effizient
-- **Erfahren (7-8):** Sehr effizient, gute Beta-Wahl, präzise, flüssig
-- **Profi (9-10):** Perfekte Effizienz, innovative Lösungen, ästhetisch, kraftsparend
+- **Position:** oben links | oben mitte | oben rechts | mitte links | mitte | mitte rechts | unten links | unten mitte | unten rechts
+- **Typ:** Jug | Crimp | Sloper | Pinch | Pocket | Volume | Edge | Undercling
+- **Größe:** Large | Medium | Small | Tiny
+- **Farbe:** [Routenfarbe wie rot/blau/grün ODER "neutral" für graue/schwarze Features]
+- **Aktiv:** Ja | Nein (Berührt der Kletterer diesen Grip JETZT gerade?)
+- **Entfernung:** Nah | Mittel | Weit (Abstand zum nächsten Grip)
 
-## 4. TECHNISCHES FEEDBACK
+**Kartierungs-Strategie:**
+1. Identifiziere ALLE sichtbaren Griffe der Routenfarbe
+2. Füge sichtbare neutrale Features (Volumes) hinzu
+3. Markiere aktiv genutzte Griffe mit "Aktiv=Ja"
+4. Schätze Position relativ zum Bildrahmen (9-Zonen-Raster)
+5. Bewerte Typ und Größe basierend auf Form und Erkennbarkeit
 
-**Positive Aspekte (2-3 Punkte):**
-✅ [Konkrete technische Stärke]
-✅ [Weitere Stärke]
+---
 
-**Verbesserungspotential (2-3 Punkte):**
-⚠️ [Konkreter Optimierungsbereich]
+## Kletterer-Analyse
+
+**Geschätztes Level:** [EXAKT: Anfänger | Fortgeschritten | Erfahren | Profi]
+
+**Bewertungskriterien:**
+
+**Anfänger:**
+- Armkraft dominant, Hüfte weit von der Wand (>30cm)
+- Unsaubere, ungenaue Fußplatzierung
+- Hektische, unkontrollierte Bewegungen
+- Fehlende Körperspannung
+- Technik-Score: 3-5/10
+
+**Fortgeschritten:**
+- Gute Balance zwischen Arm- und Beinkraft
+- Bewusste, präzise Fußarbeit
+- Kontrollierte, effiziente Bewegungen
+- Hüfte nah an der Wand
+- Technik-Score: 6-7/10
+
+**Erfahren:**
+- Sehr effiziente Bewegungsökonomie
+- Optimale Beta-Wahl und Sequenzen
+- Präzise, flüssige Ausführung
+- Gute Antizipation der nächsten Züge
+- Technik-Score: 8-8.5/10
+
+**Profi:**
+- Perfekte Bewegungseffizienz
+- Innovative, kreative Lösungen
+- Ästhetische, kraftsparende Ausführung
+- Maximale Körperbeherrschung
+- Technik-Score: 9-10/10
+
+---
+
+## Positive Aspekte
+
+**Liste 3-5 konkrete technische Stärken:**
+
+✅ [Spezifische Stärke mit Bezug zu Körperposition/Bewegung/Technik]
+✅ [Weitere konkrete Stärke]
+✅ [Noch eine Stärke]
+✅ [Optional: Weitere Stärke]
+✅ [Optional: Weitere Stärke]
+
+**Beispiele guter Formulierungen:**
+- "Exzellente Hüftrotation beim Greifen des oberen rechten Crimps"
+- "Präzise Fußplatzierung auf kleinen Tritten"
+- "Gute Körperspannung im Overhang-Bereich"
+
+---
+
+## Verbesserungspotential
+
+**Liste 3-5 konkrete Optimierungsbereiche:**
+
+⚠️ [Spezifischer Verbesserungsbereich mit Erklärung]
 ⚠️ [Weiterer Bereich]
+⚠️ [Noch ein Bereich]
+⚠️ [Optional: Weiterer Bereich]
+⚠️ [Optional: Weiterer Bereich]
 
-**Konkrete Tipps (3-4 Punkte):**
-💡 [Umsetzbare Trainingsempfehlung]
+**Beispiele guter Formulierungen:**
+- "Hüfte könnte näher zur Wand rotiert werden beim Greifen"
+- "Fußposition auf neutralen Volumes nicht optimal genutzt"
+- "Arme zu gebeugt - mehr Strecken spart Kraft"
+
+---
+
+## Konkrete Tipps
+
+**Liste 5-7 umsetzbare Trainingsempfehlungen:**
+
+💡 [Konkreter, umsetzbarer Tipp]
 💡 [Weiterer Tipp]
 💡 [Noch ein Tipp]
+💡 [Weiterer Tipp]
+💡 [Noch ein Tipp]
+💡 [Optional: Weiterer Tipp]
+💡 [Optional: Weiterer Tipp]
+
+**Beispiele guter Formulierungen:**
+- "Übe Flag-Technik an der Wand, um Hüftrotation zu verbessern"
+- "Trainiere präzise Fußplatzierung auf kleinen Tritten"
+- "Arbeite an Körperspannung durch Core-Übungen"
+
+---
+
+# QUALITÄTSSICHERUNG - CHECKLISTE
+
+Bevor du deine Analyse abschickst, überprüfe:
+
+✓ **Routenidentifikation komplett?** (Farbe, Schwierigkeitsgrad, Stil)
+✓ **Mindestens 5 Griffe kartiert?** (Mit EXAKTEM Format)
+✓ **Kletterer-Level angegeben?** (Anfänger/Fortgeschritten/Erfahren/Profi)
+✓ **Mindestens 3 Positive Aspekte?**
+✓ **Mindestens 3 Verbesserungspotentiale?**
+✓ **Mindestens 5 Konkrete Tipps?**
 
 ---
 
 # ANALYSE-PRINZIPIEN
 
-1. **Fokus auf Technik** - Keine Personen-Identifikation
-2. **Alle Griffe kartieren** - Essentiell für Overlay-Visualisierung
-3. **Routenfarbe beachten** - Nur gewählte Farbe + neutrale Features
-4. **Schwierigkeit aus Grips ableiten** - Nicht aus Farbe!
-5. **Konstruktiv & spezifisch** - Konkrete, umsetzbare Tipps
+1. **Datenqualität vor Quantität** - Lieber 5 präzise Griffe als 10 ungenaue
+2. **Spezifität statt Allgemeinplätze** - "Hüfte zu weit von Wand" statt "Technik verbesserungswürdig"
+3. **Konstruktives Feedback** - Balance zwischen Lob und Verbesserung
+4. **Konsistenz** - Schwierigkeitsgrad muss zu Grip-Eigenschaften passen
+5. **Fokus auf Technik** - Keine Personen-Identifikation, nur Bewegungsanalyse
 
-Analysiere nun das Bild!"""
+Analysiere nun das Bild mit höchster Präzision!"""
 
 
 # Global service instance
