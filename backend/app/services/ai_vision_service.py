@@ -202,7 +202,7 @@ class AIVisionService:
         frames: List[Tuple[str, float]], 
         sport_type: str
     ) -> List[Dict[str, Any]]:
-        """Analyze individual frames with GPT-4 Vision"""
+        """Analyze individual frames with GPT-4 Vision - Enterprise robustness"""
         frame_analyses = []
         
         # Use enhanced climbing prompt - NO FALLBACKS
@@ -233,27 +233,44 @@ If you cannot see the image, start your response with "I cannot see the climbing
 If you can see the image, start your response with "I can analyze this climbing image."
                 """
                 
-                # Normal vision analysis
-                response = await self.client.chat.completions.create(
-                    model=self.model,
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": [
-                                {"type": "text", "text": enhanced_prompt},
-                                {
-                                    "type": "image_url",
-                                    "image_url": {
-                                        "url": f"data:image/jpeg;base64,{base64_image}",
-                                        "detail": "high"
+                # 🔥 ENTERPRISE FIX: Wrap API call with comprehensive error handling
+                try:
+                    # Normal vision analysis
+                    response = await self.client.chat.completions.create(
+                        model=self.model,
+                        messages=[
+                            {
+                                "role": "user",
+                                "content": [
+                                    {"type": "text", "text": enhanced_prompt},
+                                    {
+                                        "type": "image_url",
+                                        "image_url": {
+                                            "url": f"data:image/jpeg;base64,{base64_image}",
+                                            "detail": "high"
+                                        }
                                     }
-                                }
-                            ]
-                        }
-                    ],
-                    max_tokens=self.max_tokens,
-                    temperature=0.3  # Lower temperature for more consistent analysis
-                )
+                                ]
+                            }
+                        ],
+                        max_tokens=self.max_tokens,
+                        temperature=0.3  # Lower temperature for more consistent analysis
+                    )
+                except openai.APIError as api_err:
+                    logger.error(f"🚨 OpenAI API Error at frame {i+1}: {api_err}")
+                    logger.error(f"Error type: {type(api_err).__name__}")
+                    logger.error(f"Error details: {str(api_err)}")
+                    raise Exception(f"OpenAI API failed: {api_err}")
+                except openai.APITimeoutError as timeout_err:
+                    logger.error(f"⏱️ OpenAI API Timeout at frame {i+1}: {timeout_err}")
+                    raise Exception(f"OpenAI API timeout: {timeout_err}")
+                except openai.RateLimitError as rate_err:
+                    logger.error(f"🚦 OpenAI Rate Limit at frame {i+1}: {rate_err}")
+                    raise Exception(f"OpenAI rate limit exceeded: {rate_err}")
+                except Exception as api_exc:
+                    logger.error(f"❌ Unexpected API error at frame {i+1}: {api_exc}")
+                    logger.error(f"Exception type: {type(api_exc).__name__}")
+                    raise Exception(f"Vision API call failed: {api_exc}")
                 
                 # LOG ACTUAL TOKEN USAGE
                 if hasattr(response, 'usage') and response.usage:
@@ -264,13 +281,28 @@ If you can see the image, start your response with "I can analyze this climbing 
                 else:
                     logger.warning(f"⚠️ No usage data available from OpenAI response")
                 
-                if response.choices and response.choices[0].message.content:
-                    analysis_text = response.choices[0].message.content
-                    
-                    # DEBUG: Log raw AI response for troubleshooting
-                    logger.warning(f"🤖 RAW AI RESPONSE (Frame {i+1}): {analysis_text[:300]}...")
-                    logger.warning(f"📏 AI Response Length: {len(analysis_text)} chars")
-                    
+                # 🔥 ENTERPRISE FIX: Validate response structure
+                if not response.choices:
+                    logger.error(f"❌ Empty response.choices from OpenAI API at frame {i+1}")
+                    raise Exception("OpenAI returned empty choices array")
+                
+                if not response.choices[0].message:
+                    logger.error(f"❌ Empty message in response at frame {i+1}")
+                    raise Exception("OpenAI returned empty message")
+                
+                if not response.choices[0].message.content:
+                    logger.error(f"❌ Empty content in message at frame {i+1}")
+                    logger.error(f"Full response object: {response}")
+                    raise Exception("OpenAI returned empty content")
+                
+                analysis_text = response.choices[0].message.content
+                
+                # DEBUG: Log raw AI response for troubleshooting
+                logger.warning(f"🤖 RAW AI RESPONSE (Frame {i+1}): {analysis_text[:500]}...")
+                logger.warning(f"📏 AI Response Length: {len(analysis_text)} chars")
+                
+                # 🔥 ENTERPRISE FIX: Wrap parsing with detailed error handling
+                try:
                     # Parse the analysis into structured data
                     parsed_analysis = self._parse_frame_analysis(analysis_text, timestamp)
                     
@@ -285,14 +317,40 @@ If you can see the image, start your response with "I can analyze this climbing 
                     logger.warning(f"🔍 PARSED RESULT: enhanced_format={parsed_analysis.get('enhanced_format', False)}")
                     logger.warning(f"📊 PARSED KEYS: {list(parsed_analysis.keys())[:10]}")
                     
+                    # 🔥 ENTERPRISE FIX: Validate critical fields before accepting
+                    validation_errors = []
+                    if parsed_analysis.get('route_color') is None:
+                        validation_errors.append("route_color is None")
+                    if parsed_analysis.get('visual_difficulty') is None:
+                        validation_errors.append("visual_difficulty is None")
+                    if not parsed_analysis.get('grips') or len(parsed_analysis.get('grips', [])) == 0:
+                        validation_errors.append("no grips extracted")
+                    
+                    if validation_errors:
+                        logger.error(f"❌ VALIDATION FAILED at frame {i+1}: {', '.join(validation_errors)}")
+                        logger.error(f"Raw AI response excerpt: {analysis_text[:1000]}")
+                        raise ValueError(f"Parsed data missing critical fields: {', '.join(validation_errors)}")
+                    
                     frame_analyses.append(parsed_analysis)
                     
-                    logger.info(f"Frame {i+1} analysis: {parsed_analysis.get('technique_score', 'N/A')}/10")
+                    logger.info(f"✅ Frame {i+1} analysis SUCCESS: score={parsed_analysis.get('technique_score', 'N/A')}/10, color={parsed_analysis.get('route_color')}, grips={len(parsed_analysis.get('grips', []))}")
+                    
+                except ValueError as parse_err:
+                    logger.error(f"🚨 PARSING VALIDATION ERROR at frame {i+1}: {parse_err}")
+                    logger.error(f"AI Response that failed: {analysis_text[:1500]}")
+                    raise Exception(f"AI response validation failed: {parse_err}")
+                except Exception as parse_exc:
+                    logger.error(f"❌ PARSING ERROR at frame {i+1}: {parse_exc}")
+                    logger.error(f"Exception type: {type(parse_exc).__name__}")
+                    logger.error(f"Full AI response: {analysis_text}")
+                    raise Exception(f"Failed to parse AI response: {parse_exc}")
                 
             except Exception as e:
-                logger.error(f"Failed to analyze frame {i+1}: {str(e)}")
-                # Continue with other frames
-                continue
+                logger.error(f"❌ FRAME {i+1} ANALYSIS FAILED: {str(e)}")
+                logger.error(f"Exception type: {type(e).__name__}")
+                logger.error(f"Exception details: {str(e)}")
+                # 🔥 ENTERPRISE FIX: Don't silently continue - re-raise to fail fast
+                raise Exception(f"Frame analysis failed at frame {i+1}: {str(e)}")
         
         return frame_analyses
     
@@ -323,8 +381,11 @@ If you can see the image, start your response with "I can analyze this climbing 
             raise Exception(f"Enhanced frame analysis parsing failed: {str(e)}")
     
     def _parse_enhanced_format(self, analysis_text: str) -> Optional[Dict[str, Any]]:
-        """Parse new enhanced format with structured sections - strict validation mode"""
+        """Parse new enhanced format with structured sections - enterprise robustness"""
         import re
+        
+        logger.warning(f"🔧 ENTERPRISE PARSING: Starting enhanced format extraction")
+        logger.warning(f"📝 Input text length: {len(analysis_text)} chars")
         
         # Initialize with NO defaults for critical fields - these MUST be extracted
         parsed_data = {
@@ -341,15 +402,28 @@ If you can see the image, start your response with "I can analyze this climbing 
             'enhanced_format': True
         }
         
-        # Extract route identification section
+        # 🔥 ENTERPRISE FIX: Extract route identification section with detailed logging
         route_match = re.search(r'## Routenidentifikation\s*\n(.+?)(?=##|$)', analysis_text, re.DOTALL)
         if route_match:
             route_section = route_match.group(1)
+            logger.warning(f"📍 ROUTE SECTION FOUND: {route_section[:200]}...")
             
-            # Extract color
-            color_match = re.search(r'\*\*Farbe:\*\*\s*([^\n]+)', route_section)
-            if color_match:
-                color_raw = color_match.group(1).strip().lower()
+            # Extract color with enhanced patterns
+            color_patterns = [
+                r'\*\*Farbe:\*\*\s*([^\n]+)',  # Standard format
+                r'Farbe:\s*([^\n]+)',  # Without bold
+                r'Routenfarbe:\s*([^\n]+)',  # Alternative naming
+            ]
+            
+            color_raw = None
+            for pattern in color_patterns:
+                color_match = re.search(pattern, route_section, re.IGNORECASE)
+                if color_match:
+                    color_raw = color_match.group(1).strip().lower()
+                    logger.warning(f"🎨 COLOR EXTRACTED: '{color_raw}' using pattern: {pattern}")
+                    break
+            
+            if color_raw:
                 color_map = {
                     'rot': 'rot', 'red': 'rot',
                     'blau': 'blau', 'blue': 'blau', 
@@ -364,20 +438,42 @@ If you can see the image, start your response with "I can analyze this climbing 
                 for key, value in color_map.items():
                     if key in color_raw:
                         parsed_data['route_color'] = value
+                        logger.warning(f"✅ COLOR MAPPED: '{color_raw}' -> '{value}'")
                         break
             
-            # Validate route color was extracted
+            # 🔥 ENTERPRISE FIX: Validate route color was extracted
             if not parsed_data.get('route_color'):
-                logger.error("❌ VALIDATION FAILED: Route color not extracted or invalid")
-                raise ValueError("Missing or invalid route color in AI response")
+                logger.error(f"❌ VALIDATION FAILED: Route color not extracted or invalid")
+                logger.error(f"Route section: {route_section[:500]}")
+                logger.error(f"Color raw value: {color_raw}")
+                raise ValueError(f"Missing or invalid route color in AI response. Raw: '{color_raw}'")
             
-        # Extract difficulty grade and convert to numerical
-            diff_match = re.search(r'\*\*Schwierigkeitsgrad:\*\*\s*([^\n]+)', route_section)
-            if diff_match:
-                difficulty_text = diff_match.group(1).strip()
-                parsed_data['visual_difficulty'] = self._extract_difficulty_from_grade(difficulty_text)
+            # 🔥 ENTERPRISE FIX: Extract difficulty grade with enhanced patterns
+            diff_patterns = [
+                r'\*\*Schwierigkeitsgrad:\*\*\s*([^\n]+)',  # Standard format
+                r'Schwierigkeitsgrad:\s*([^\n]+)',  # Without bold
+                r'Grad:\s*([^\n]+)',  # Short format
+                r'Difficulty:\s*([^\n]+)',  # English
+            ]
+            
+            difficulty_text = None
+            for pattern in diff_patterns:
+                diff_match = re.search(pattern, route_section, re.IGNORECASE)
+                if diff_match:
+                    difficulty_text = diff_match.group(1).strip()
+                    logger.warning(f"📊 DIFFICULTY EXTRACTED: '{difficulty_text}' using pattern: {pattern}")
+                    break
+            
+            if difficulty_text:
+                try:
+                    parsed_data['visual_difficulty'] = self._extract_difficulty_from_grade(difficulty_text)
+                    logger.warning(f"✅ DIFFICULTY CONVERTED: '{difficulty_text}' -> {parsed_data['visual_difficulty']}/10")
+                except Exception as diff_err:
+                    logger.error(f"❌ DIFFICULTY CONVERSION FAILED: {diff_err}")
+                    raise ValueError(f"Failed to convert difficulty '{difficulty_text}': {diff_err}")
             else:
                 logger.error("❌ VALIDATION FAILED: No difficulty grade found in route section")
+                logger.error(f"Route section: {route_section[:500]}")
                 raise ValueError("Missing Schwierigkeitsgrad in AI response")
             
             # Extract wall angle/style
@@ -390,6 +486,10 @@ If you can see the image, start your response with "I can analyze this climbing 
                     parsed_data['wall_angle'] = 'vertical'
                 elif 'roof' in style:
                     parsed_data['wall_angle'] = 'steep_overhang'
+        else:
+            logger.error("❌ NO ROUTE SECTION FOUND in AI response")
+            logger.error(f"AI Response preview: {analysis_text[:800]}")
+            raise ValueError("No '## Routenidentifikation' section found in AI response")
         
         # Extract climber level
         level_match = re.search(r'\*\*Geschätztes Level:\*\*\s*([^\n]+)', analysis_text)
@@ -408,33 +508,72 @@ If you can see the image, start your response with "I can analyze this climbing 
                 parsed_data['climber_level'] = 'profi'
                 parsed_data['technique_score'] = 9.0  # Professional score
         
-        # Extract grip kartierung (NEW - critical for overlay)
+        # 🔥 ENTERPRISE FIX: Extract grip kartierung with enhanced patterns and fallback
         grips = []
-        grip_matches = re.findall(
-            r'📍\s*Grip\s*(\d+):?\s*Position=([^,]+),\s*Typ=([^,]+),\s*Größe=([^,]+),\s*Farbe=([^,]+),\s*Aktiv=([^,]+)(?:,\s*Entfernung=([^,\n]+))?',
-            analysis_text,
-            re.IGNORECASE
-        )
         
-        for grip_match in grip_matches:
-            grip_num, position, typ, size, color, active, distance = grip_match
-            grips.append({
-                'number': int(grip_num) if grip_num.isdigit() else len(grips) + 1,
-                'position': position.strip(),
-                'type': typ.strip().lower(),
-                'size': size.strip().lower(),
-                'color': color.strip().lower(),
-                'active': active.strip().lower() in ['ja', 'yes', 'true'],
-                'distance_to_next': distance.strip().lower() if distance else 'mittel'
-            })
+        # Try multiple grip extraction patterns
+        grip_patterns = [
+            # Primary pattern with all fields
+            r'📍\s*Grip\s*(\d+):?\s*Position=([^,]+),\s*Typ=([^,]+),\s*Größe=([^,]+),\s*Farbe=([^,]+),\s*Aktiv=([^,]+)(?:,\s*Entfernung=([^,\n]+))?',
+            # Pattern without emoji
+            r'Grip\s*(\d+):?\s*Position=([^,]+),\s*Typ=([^,]+),\s*Größe=([^,]+),\s*Farbe=([^,]+),\s*Aktiv=([^,]+)(?:,\s*Entfernung=([^,\n]+))?',
+            # Simpler pattern
+            r'Grip\s*(\d+).*?Position[=:]\s*([^,]+).*?Typ[=:]\s*([^,]+).*?Größe[=:]\s*([^,]+).*?Farbe[=:]\s*([^,]+).*?Aktiv[=:]\s*([^,\n]+)',
+        ]
+        
+        for pattern_idx, pattern in enumerate(grip_patterns):
+            grip_matches = re.findall(pattern, analysis_text, re.IGNORECASE | re.DOTALL)
+            if grip_matches:
+                logger.warning(f"🎯 GRIP PATTERN {pattern_idx+1} MATCHED: {len(grip_matches)} grips found")
+                
+                for match_idx, grip_match in enumerate(grip_matches):
+                    try:
+                        if len(grip_match) == 7:  # Full match with distance
+                            grip_num, position, typ, size, color, active, distance = grip_match
+                        elif len(grip_match) == 6:  # Match without distance
+                            grip_num, position, typ, size, color, active = grip_match
+                            distance = None
+                        else:
+                            logger.warning(f"⚠️ Unexpected grip match length: {len(grip_match)}")
+                            continue
+                        
+                        grip_data = {
+                            'number': int(grip_num) if grip_num.isdigit() else len(grips) + 1,
+                            'position': position.strip(),
+                            'type': typ.strip().lower(),
+                            'size': size.strip().lower(),
+                            'color': color.strip().lower(),
+                            'active': active.strip().lower() in ['ja', 'yes', 'true'],
+                            'distance_to_next': distance.strip().lower() if distance else 'mittel'
+                        }
+                        grips.append(grip_data)
+                        logger.warning(f"✅ Grip {len(grips)}: {grip_data['position']}, {grip_data['type']}, {grip_data['size']}")
+                    except Exception as grip_err:
+                        logger.warning(f"⚠️ Failed to parse grip match {match_idx+1}: {grip_err}")
+                        continue
+                
+                break  # Successfully found grips, stop trying patterns
         
         parsed_data['grips'] = grips
         logger.warning(f"🧗 EXTRACTED {len(grips)} GRIPS from AI response")
         
-        # STRICT VALIDATION: Require minimum grips data
+        # 🔥 ENTERPRISE FIX: Enhanced validation with detailed error reporting
         if len(grips) == 0:
             logger.error("❌ VALIDATION FAILED: No grips extracted from AI response")
-            raise ValueError("No grip data found in AI response - analysis incomplete")
+            logger.error(f"Searched for grips in text length: {len(analysis_text)}")
+            
+            # Check if grip section exists at all
+            if '## Grip-Kartierung' in analysis_text or 'Grip' in analysis_text:
+                logger.error(f"⚠️ Grip mentions found but parsing failed")
+                # Extract the grip section for debugging
+                grip_section_match = re.search(r'## Grip-Kartierung.*?(?=##|$)', analysis_text, re.DOTALL | re.IGNORECASE)
+                if grip_section_match:
+                    logger.error(f"Grip section content: {grip_section_match.group(0)[:1000]}")
+            else:
+                logger.error(f"❌ No grip section found in AI response at all")
+                logger.error(f"AI response preview: {analysis_text[:1500]}")
+            
+            raise ValueError("No grip data found in AI response - analysis incomplete. AI may not be following prompt format.")
         
         # Extract positive aspects
         positive_match = re.search(r'## Positive Aspekte.*?\\n(.*?)(?=##|$)', analysis_text, re.DOTALL)
