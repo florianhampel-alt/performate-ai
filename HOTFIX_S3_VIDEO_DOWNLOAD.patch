@@ -1,0 +1,135 @@
+diff --git a/backend/app/services/ai_vision_service.py b/backend/app/services/ai_vision_service.py
+index abc1234..def5678 100644
+--- a/backend/app/services/ai_vision_service.py
++++ b/backend/app/services/ai_vision_service.py
+@@ -44,6 +44,11 @@ class AIVisionService:
+         
+     async def analyze_climbing_video(
+         self, 
+         video_path: str, 
+         analysis_id: str,
+         sport_type: str = "climbing"
+     ) -> Dict[str, Any]:
+         """
+         Analyze climbing video using GPT-4 Vision
+         
+         Args:
+             video_path: Path to video file (can be S3 key, local path, or URL)
+             analysis_id: Unique analysis ID
+             sport_type: Type of climbing (climbing, bouldering)
+             
+         Returns:
+             Complete analysis with route data and overlay information
+         """
++        temp_file = None
+         try:
+             logger.info(f"Starting AI vision analysis for {analysis_id}")
++            
++            # 🔧 HOTFIX: Download from S3 if video_path is an S3 key
++            if not video_path.startswith(('/', 'http://', 'https://')):
++                # It's an S3 key, download to temp file
++                import tempfile
++                import aiohttp
++                from app.services.s3_service import s3_service
++                
++                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4', mode='wb')
++                logger.info(f"🔽 Downloading S3 key {video_path} to {temp_file.name}")
++                
++                # Generate presigned URL and download
++                presigned_url = await s3_service.generate_presigned_url(video_path, expires_in=3600)
++                if not presigned_url:
++                    raise Exception(f"Failed to generate presigned URL for {video_path}")
++                
++                logger.info(f"📡 Presigned URL generated, downloading video...")
++                
++                async with aiohttp.ClientSession() as session:
++                    async with session.get(presigned_url) as response:
++                        if response.status != 200:
++                            raise Exception(f"Failed to download video: HTTP {response.status}")
++                        
++                        # Stream download in chunks
++                        total_bytes = 0
++                        chunk_size = 8 * 1024 * 1024  # 8MB chunks
++                        async for chunk in response.content.iter_chunked(chunk_size):
++                            temp_file.write(chunk)
++                            total_bytes += len(chunk)
++                        
++                        logger.info(f"✅ Video downloaded successfully: {total_bytes/(1024*1024):.1f}MB")
++                
++                temp_file.close()
++                video_path = temp_file.name  # Use local path from now on
++                logger.info(f"📂 Using local video path: {video_path}")
+             
+             # Extract key frames using ENTERPRISE system ONLY - NO FALLBACKS
+             logger.info(f"🏗️ Using ENTERPRISE video processing system for {analysis_id}")
+@@ -147,6 +189,14 @@ class AIVisionService:
+             logger.info(f"AI vision analysis completed for {analysis_id}")
+             return result
+             
+         except Exception as e:
+             logger.error(f"❌ AI vision analysis FAILED for {analysis_id}: {str(e)}")
+             raise Exception(f"AI analysis failed - NO FALLBACKS: {str(e)}")
++        
++        finally:
++            # Cleanup temp file
++            if temp_file is not None:
++                import os
++                try:
++                    if os.path.exists(temp_file.name):
++                        os.unlink(temp_file.name)
++                        logger.info(f"🗑️ Cleaned up temp file: {temp_file.name}")
++                except Exception as cleanup_err:
++                    logger.warning(f"⚠️ Failed to cleanup temp file: {cleanup_err}")
+     
+     async def _analyze_frames(
+
+diff --git a/backend/app/services/s3_service.py b/backend/app/services/s3_service.py
+index hij6789..klm0123 100644
+--- a/backend/app/services/s3_service.py
++++ b/backend/app/services/s3_service.py
+@@ -51,6 +51,29 @@ class S3Service:
+             return False
+ 
++    async def generate_presigned_url(self, key: str, expires_in: int = 3600) -> Optional[str]:
++        """
++        Generate presigned URL for S3 object
++        
++        Args:
++            key: S3 object key
++            expires_in: URL validity in seconds (default 1 hour)
++            
++        Returns:
++            Presigned URL if successful, None if failed
++        """
++        if not self.enabled:
++            logger.warning("S3 not configured - cannot generate presigned URL")
++            return None
++            
++        try:
++            url = self.client.generate_presigned_url(
++                'get_object',
++                Params={'Bucket': self.bucket, 'Key': key},
++                ExpiresIn=expires_in
++            )
++            logger.info(f"Generated presigned URL for {key} (expires in {expires_in}s)")
++            return url
++        except Exception as e:
++            logger.error(f"Failed to generate presigned URL for {key}: {str(e)}")
++            return None
++
+     async def upload_video_stream(
+         self, 
+         video_stream, 
+
+diff --git a/backend/requirements.txt b/backend/requirements.txt
+index nop4567..qrs8901 100644
+--- a/backend/requirements.txt
++++ b/backend/requirements.txt
+@@ -15,6 +15,7 @@ boto3>=1.28.0
+ aioboto3>=11.3.0
+ pillow>=10.0.0
+ python-multipart>=0.0.6
++aiohttp>=3.9.0
+ 
+ # Redis / Caching
+ redis>=5.0.0
