@@ -399,11 +399,34 @@ If you can see the image, start your response with "I can analyze this climbing 
                 parsed_data['climber_level'] = 'profi'
                 parsed_data['technique_score'] = 9.0  # Professional score
         
+        # Extract grip kartierung (NEW - critical for overlay)
+        grips = []
+        grip_matches = re.findall(
+            r'📍\s*Grip\s*(\d+):?\s*Position=([^,]+),\s*Typ=([^,]+),\s*Größe=([^,]+),\s*Farbe=([^,]+),\s*Aktiv=([^,]+)(?:,\s*Entfernung=([^,\n]+))?',
+            analysis_text,
+            re.IGNORECASE
+        )
+        
+        for grip_match in grip_matches:
+            grip_num, position, typ, size, color, active, distance = grip_match
+            grips.append({
+                'number': int(grip_num) if grip_num.isdigit() else len(grips) + 1,
+                'position': position.strip(),
+                'type': typ.strip().lower(),
+                'size': size.strip().lower(),
+                'color': color.strip().lower(),
+                'active': active.strip().lower() in ['ja', 'yes', 'true'],
+                'distance_to_next': distance.strip().lower() if distance else 'mittel'
+            })
+        
+        parsed_data['grips'] = grips
+        logger.warning(f"🧗 EXTRACTED {len(grips)} GRIPS from AI response")
+        
         # Extract positive aspects
-        positive_match = re.search(r'## Positive Aspekte.*?\n(.*?)(?=##|$)', analysis_text, re.DOTALL)
+        positive_match = re.search(r'## Positive Aspekte.*?\\n(.*?)(?=##|$)', analysis_text, re.DOTALL)
         if positive_match:
             positive_text = positive_match.group(1)
-            positive_items = re.findall(r'✅\s*([^\n]+)', positive_text)
+            positive_items = re.findall(r'✅\\s*([^\\n]+)', positive_text)
             parsed_data['positive_aspects'] = positive_items[:5]  # Limit to 5
         
         # Extract improvement areas
@@ -1379,97 +1402,92 @@ If you can see the image, start your response with "I can analyze this climbing 
 
 
     def _get_enhanced_climbing_prompt(self) -> str:
-        """Enhanced climbing analysis prompt optimized for production"""
-        return """Du bist ein Kletter-Coach für Technikanalyse. Analysiere die sichtbaren Klettertechniken und Bewegungsmuster in diesem Bild.
+        """Optimized climbing analysis prompt with grip mapping and route context"""
+        return """Du bist ein professioneller Kletter-Coach. Analysiere die Klettertechnik in diesem Bild.
 
-WICHTIG: Konzentriere dich nur auf Klettertechniken, Körperpositionen und Bewegungen - NICHT auf die Identifikation von Personen.
+# WICHTIGE KLETTER-KONVENTIONEN
 
-# TECHNISCHE ANALYSE-BEREICHE
+## ROUTEN-SYSTEM
+- **Grifffarben** = Route-Identifikation (z.B. "rote Route", "blaue Route")
+- Der Kletterer wählt EINE Farbe und klettert nur diese Griffe
+- **Graue/Schwarze Wandvorsprünge** = NEUTRAL, immer erlaubt (Volumes/Features)
+- **Schwierigkeit** wird bestimmt durch:
+  - Position der Griffe (weit auseinander = schwerer)
+  - Griffform (Crimp = schwerer als Jug)
+  - Griffgröße (kleine Griffe = schwerer)
+  - Gesamte Anordnung und Sequenz
 
-## KÖRPERPOSITION & TECHNIK
-- Hüftposition zur Wand (optimal: nah an der Wand)
-- Armposition (gestreckt vs. gebeugt)
-- Fußplatzierung und Präzision
-- Körperspannung und Balance
-- Bewegungseffizienz
-
-## GRIFFTECHNIKEN
-- Grifftypen: Jug, Crimp, Sloper, Pinch, Pocket
-- Griffgrößen: Large, Medium, Small, Tiny
-- Hold-Qualität und Nutzung
-
-## ROUTE-EIGENSCHAFTEN
-- Wandwinkel: Vertical, Slab, Overhang, Roof
-- Routenfarbe (für Orientierung)
-- Schwierigkeitsbereich basierend auf sichtbaren Holds
-- Bewegungssequenz-Typ
-
-## LEISTUNGSEBENEN
-
-**ANFÄNGER-MERKMALE:**
-- Hauptsächlich Armkraft statt Beinarbeit
-- Hüfte weit von Wand (30-50cm)
-- Hektische, unkontrollierte Bewegungen
-- Ungenaue Fußplatzierung
-
-**FORTGESCHRITTENE-MERKMALE:**
-- Balance zwischen Arm- und Beinarbeit
-- Bewusste Fußplatzierung
-- Effizienzorientierte Bewegungen
-- Verwendung verschiedener Grifftechniken
-
-**PROFI-MERKMALE:**
-- Perfekte Bewegungseffizienz
-- Innovative Beta-Lösungen
-- Präzise Kraftdosierung
-- Flüssige, ästhetische Bewegungen
+## BEISPIEL
+- Route: "Gelbe Route" → Kletterer nutzt NUR gelbe Griffe + neutrale Volumes
+- Schwierigkeit: 6a → basierend auf kleinen Crimps, weiten Zügen, Overhang
 
 ---
 
-# ANALYSE-FORMAT
+# ANALYSE-AUFGABE
 
-Analysiere in dieser Struktur:
+Analysiere systematisch:
 
-## Routenidentifikation
-**Farbe:** [Sichtbare Routenfarbe]
-**Schwierigkeitsgrad:** [Geschätzter Grad basierend auf Holds, z.B. "V4-V5"]
-**Stil:** [Wandwinkel: Vertical/Slab/Overhang/Roof]
+## 1. ROUTE-IDENTIFIKATION
+- **Gewählte Route:** [Farbe der Griffe, die der Kletterer nutzt]
+- **Neutrale Features:** [Sind graue/schwarze Volumes sichtbar?]
+- **Schwierigkeitsgrad:** [Geschätzter Grad basierend auf Grip-Eigenschaften]
+  - Begründung: [Warum dieser Grad? Position/Form/Größe der Griffe]
 
-## Technische Bewertung
-**Geschätztes Level:** [Anfänger/Fortgeschritten/Erfahren/Profi]
-**Begründung:** [Basierend auf sichtbare Techniken]
+## 2. GRIP-KARTIERUNG (FÜR ROUTE-OVERLAY)
 
-## Positive Technische Aspekte (3-4 Punkte)
-✅ [Gute Körperposition beobachtet]
-✅ [Effiziente Bewegungstechnik]
-✅ [Korrekte Griffnutzung]
-✅ [Andere technische Stärken]
+**WICHTIG:** Liste ALLE sichtbaren Griffe der gewählten Route + neutrale Features!
 
-## Technische Verbesserungen (3-4 Punkte)
-⚠️ [Körperposition optimierbar]
-⚠️ [Bewegungseffizienz steigerbar]
-⚠️ [Grifftechnik verbesserbar]
-⚠️ [Andere technische Aspekte]
+Format für jeden Grip:
+📍 **Grip [Nummer]:**
+   - Position: [Relative Position: "oben links", "oben mitte", "oben rechts", "mitte links", "mitte", "mitte rechts", "unten links", "unten mitte", "unten rechts"]
+   - Typ: [Jug/Crimp/Sloper/Pinch/Pocket/Volume]
+   - Größe: [Large/Medium/Small/Tiny]
+   - Farbe: [Routenfarbe ODER "neutral" für graue/schwarze Features]
+   - Aktiv genutzt: [Ja/Nein - berührt der Kletterer diesen Grip gerade?]
+   - Entfernung zum nächsten: [Nah/Mittel/Weit]
 
-## Konkrete Technik-Tipps (4-6 Punkte)
-💡 [Spezifische Körperposition-Übung]
-💡 [Grifftechnik-Verbesserung]
-💡 [Bewegungssequenz-Training]
-💡 [Fußarbeit-Übung]
-💡 [Kraft-/Technik-Training]
-💡 [Weitere praktische Empfehlung]
+**Beispiel:**
+📍 Grip 1: Position=oben links, Typ=Jug, Größe=Large, Farbe=Rot, Aktiv=Ja, Entfernung=Mittel
+📍 Grip 2: Position=oben mitte, Typ=Crimp, Größe=Small, Farbe=Rot, Aktiv=Nein, Entfernung=Weit
+📍 Grip 3: Position=mitte, Typ=Volume, Größe=Large, Farbe=neutral, Aktiv=Ja, Entfernung=Nah
+
+## 3. KLETTERER-LEVEL & TECHNIK
+- **Level:** [Anfänger/Fortgeschritten/Erfahren/Profi]
+- **Technik-Score:** [1-10]
+- **Begründung:** [Körperposition, Bewegungsqualität, Effizienz]
+
+**Level-Kriterien:**
+- **Anfänger (1-4):** Armkraft dominant, Hüfte >30cm von Wand, ungenaue Füße, hektisch
+- **Fortgeschritten (5-7):** Balance Arm/Bein, bewusste Fußarbeit, kontrolliert, effizient
+- **Erfahren (7-8):** Sehr effizient, gute Beta-Wahl, präzise, flüssig
+- **Profi (9-10):** Perfekte Effizienz, innovative Lösungen, ästhetisch, kraftsparend
+
+## 4. TECHNISCHES FEEDBACK
+
+**Positive Aspekte (2-3 Punkte):**
+✅ [Konkrete technische Stärke]
+✅ [Weitere Stärke]
+
+**Verbesserungspotential (2-3 Punkte):**
+⚠️ [Konkreter Optimierungsbereich]
+⚠️ [Weiterer Bereich]
+
+**Konkrete Tipps (3-4 Punkte):**
+💡 [Umsetzbare Trainingsempfehlung]
+💡 [Weiterer Tipp]
+💡 [Noch ein Tipp]
 
 ---
 
 # ANALYSE-PRINZIPIEN
 
-1. **Fokus auf Technik:** Nur Bewegungen und Körperpositionen analysieren
-2. **Konkrete Beobachtungen:** Spezifische technische Details
-3. **Konstruktives Feedback:** Verbesserungsvorschläge mit Übungen
-4. **Level-appropriate:** Tipps basierend auf erkanntem Können
-5. **Messbare Aspekte:** Konkrete Distanzen, Winkel, Positionen
+1. **Fokus auf Technik** - Keine Personen-Identifikation
+2. **Alle Griffe kartieren** - Essentiell für Overlay-Visualisierung
+3. **Routenfarbe beachten** - Nur gewählte Farbe + neutrale Features
+4. **Schwierigkeit aus Grips ableiten** - Nicht aus Farbe!
+5. **Konstruktiv & spezifisch** - Konkrete, umsetzbare Tipps
 
-Analysiere nun die sichtbaren Klettertechniken in diesem Bild!"""
+Analysiere nun das Bild!"""
 
 
 # Global service instance
